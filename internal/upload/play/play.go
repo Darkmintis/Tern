@@ -67,7 +67,7 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: credentials file", err)
 	}
 
-	svc, err := androidpublisher.NewService(ctx, option.WithCredentialsFile(creds))
+	svc, err := androidpublisher.NewService(ctx, option.WithServiceAccountFile(creds))
 	if err != nil {
 		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: creating publisher client", err)
 	}
@@ -81,7 +81,9 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 	if err != nil {
 		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: open artifact", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	var versionCode int64
 	if ext == ".aab" {
