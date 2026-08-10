@@ -1,0 +1,57 @@
+# setup-tern
+#
+# Composite action that installs the tern CLI for GitHub Actions.
+#
+# Usage:
+#   - uses: darkmintis/Tern/action/setup-tern@main
+#   # or pin a release tag once published:
+#   - uses: darkmintis/Tern/action/setup-tern@v0.1.0
+#
+name: Setup Tern
+description: Install the tern mobile release CLI
+inputs:
+  version:
+    description: Tern version tag (e.g. v0.1.0) or "latest"
+    required: false
+    default: latest
+runs:
+  using: composite
+  steps:
+    - name: Install tern
+      shell: bash
+      env:
+        TERN_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        OS=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
+        case "$OS" in
+          linux) OS=linux ;;
+          macos) OS=darwin ;;
+          windows) OS=windows ;;
+        esac
+        ARCH=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
+        case "$ARCH" in
+          x64|amd64) ARCH=amd64 ;;
+          arm64) ARCH=arm64 ;;
+        esac
+        EXT=""
+        if [ "$OS" = "windows" ]; then EXT=".exe"; fi
+        ASSET="tern-${OS}-${ARCH}${EXT}"
+        if [ "${TERN_VERSION}" = "latest" ]; then
+          URL="https://github.com/darkmintis/Tern/releases/latest/download/${ASSET}"
+        else
+          URL="https://github.com/darkmintis/Tern/releases/download/${TERN_VERSION}/${ASSET}"
+        fi
+        BIN_DIR="${RUNNER_TEMP}/tern-bin"
+        mkdir -p "$BIN_DIR"
+        echo "Downloading $URL"
+        if ! curl -fsSL "$URL" -o "${BIN_DIR}/tern${EXT}"; then
+          echo "Release binary not found; falling back to go install"
+          go install github.com/darkmintis/Tern/cmd/tern@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          tern version
+          exit 0
+        fi
+        chmod +x "${BIN_DIR}/tern${EXT}"
+        echo "$BIN_DIR" >> "$GITHUB_PATH"
+        "${BIN_DIR}/tern${EXT}" version
