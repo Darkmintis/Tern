@@ -1,0 +1,19 @@
+# Ternfile — Flutter → Google Play (Android only)
+#
+# Copy to your Flutter project root as `Ternfile`.
+# Sign BEFORE build so android/key.properties exists for release AABs.
+
+lane build:
+  build android debug
+
+lane release:
+  bump version patch
+  sign android with keystore env:ANDROID_KEYSTORE
+  build android release
+  upload android to play_store track:internal
+  tag git prefix:v
+
+# Other tracks when ready:
+#   upload android to play_store track:alpha
+#   upload android to play_store track:beta
+#   upload android to play_store track:production

@@ -1,0 +1,14 @@
+# Ternfile — Flutter → TestFlight (iOS only)
+#
+# Requires macOS + Xcode signing that already works with:
+#   flutter build ipa --release
+
+lane build:
+  build ios debug
+
+lane release_ios:
+  bump version patch
+  sign ios with cert env:IOS_CERT
+  build ios release
+  upload ios to testflight
+  tag git prefix:v

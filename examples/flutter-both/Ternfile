@@ -1,0 +1,32 @@
+# Ternfile — Flutter Android + iOS in one lane
+#
+# Use when you ship both stores from the same release.
+# Prefer separate lanes (release / release_ios) if CI runners differ
+# (Linux for Play, macOS for TestFlight).
+
+lane build:
+  build android debug
+  build ios debug
+
+lane release_all:
+  bump version patch
+  sign android with keystore env:ANDROID_KEYSTORE
+  sign ios with cert env:IOS_CERT
+  build android release
+  build ios release
+  upload android to play_store track:internal
+  upload ios to testflight
+  tag git prefix:v
+
+# Split lanes for CI:
+lane release_android:
+  bump version patch
+  sign android with keystore env:ANDROID_KEYSTORE
+  build android release
+  upload android to play_store track:internal
+
+lane release_ios:
+  bump version patch
+  sign ios with cert env:IOS_CERT
+  build ios release
+  upload ios to testflight
