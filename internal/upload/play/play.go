@@ -67,7 +67,7 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: credentials file", err)
 	}
 
-	svc, err := androidpublisher.NewService(ctx, option.WithServiceAccountFile(creds))
+	svc, err := androidpublisher.NewService(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, creds))
 	if err != nil {
 		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: creating publisher client", err)
 	}

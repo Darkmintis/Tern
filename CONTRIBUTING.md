@@ -30,7 +30,16 @@ See [`docs/adr/`](docs/adr/) for architecture decisions and [`docs/getting-start
 
 ## Pull requests
 
-1. `gofmt -w .`
-2. `go test ./...`
-3. `golangci-lint run` (if installed)
+Run the same gates as GitHub Actions locally:
+
+```bash
+make install-lint   # once
+make ci             # gofmt + golangci-lint v2.12.2 + go test
+```
+
+Or step by step:
+
+1. `make fmt`
+2. `make test`
+3. `make lint`
 4. Describe the *why* in the PR body
