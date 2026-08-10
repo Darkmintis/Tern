@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/darkmintis/Tern/internal/adapter"
@@ -15,6 +16,12 @@ type fakeRunner struct{}
 
 func (fakeRunner) Run(ctx context.Context, dir, name string, args ...string) (string, error) {
 	return "ok", nil
+}
+
+func testAdapter() *flutter.Adapter {
+	ad := flutter.New(fakeRunner{})
+	ad.LookPath = func(string) (string, error) { return "/usr/bin/flutter", nil }
+	return ad
 }
 
 func TestDetect(t *testing.T) {
@@ -34,7 +41,7 @@ func TestDetect(t *testing.T) {
 }
 
 func TestBuildDryRun(t *testing.T) {
-	ad := flutter.New(fakeRunner{})
+	ad := testAdapter()
 	art, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: "/tmp/app",
 		Platform:    config.PlatformAndroid,
@@ -48,7 +55,7 @@ func TestBuildDryRun(t *testing.T) {
 
 func TestBuildAndroidRequiresArtifact(t *testing.T) {
 	dir := t.TempDir()
-	ad := flutter.New(fakeRunner{})
+	ad := testAdapter()
 	_, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: dir,
 		Platform:    config.PlatformAndroid,
@@ -57,6 +64,9 @@ func TestBuildAndroidRequiresArtifact(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected missing artifact error")
 	}
+	if !strings.Contains(err.Error(), "no android artifact") {
+		t.Fatalf("want missing artifact error, got: %v", err)
+	}
 }
 
 func TestBuildAndroidFindsAAB(t *testing.T) {
@@ -64,7 +74,7 @@ func TestBuildAndroidFindsAAB(t *testing.T) {
 	out := filepath.Join(dir, "build", "app", "outputs", "bundle", "release")
 	_ = os.MkdirAll(out, 0o755)
 	_ = os.WriteFile(filepath.Join(out, "app-release.aab"), []byte("aab"), 0o644)
-	ad := flutter.New(fakeRunner{})
+	ad := testAdapter()
 	art, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: dir,
 		Platform:    config.PlatformAndroid,
@@ -72,5 +82,20 @@ func TestBuildAndroidFindsAAB(t *testing.T) {
 	})
 	if err != nil || art.Kind != "aab" {
 		t.Fatalf("%+v %v", art, err)
+	}
+}
+
+func TestBuildFailsWhenFlutterMissing(t *testing.T) {
+	ad := flutter.New(fakeRunner{})
+	ad.LookPath = func(string) (string, error) {
+		return "", os.ErrNotExist
+	}
+	_, err := ad.Build(context.Background(), adapter.BuildOptions{
+		ProjectRoot: t.TempDir(),
+		Platform:    config.PlatformAndroid,
+		Mode:        config.ModeRelease,
+	})
+	if err == nil || !strings.Contains(err.Error(), "flutter not found") {
+		t.Fatalf("got %v", err)
 	}
 }

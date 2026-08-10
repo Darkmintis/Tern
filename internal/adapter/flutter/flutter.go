@@ -16,13 +16,15 @@ import (
 // Adapter builds Flutter apps (v0 supported path).
 type Adapter struct {
 	Runner execx.Runner
+	// LookPath finds binaries on PATH. Defaults to exec.LookPath; override in tests.
+	LookPath func(file string) (string, error)
 }
 
 func New(r execx.Runner) *Adapter {
 	if r == nil {
 		r = &execx.RealRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 	}
-	return &Adapter{Runner: r}
+	return &Adapter{Runner: r, LookPath: execx.LookPath}
 }
 
 func (a *Adapter) Name() string { return "flutter" }
@@ -64,7 +66,11 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		kind, path := expectedArtifact(opts.ProjectRoot, opts.Platform, opts.Mode)
 		return adapter.BuildArtifact{Path: path, Platform: opts.Platform, Kind: kind}, nil
 	}
-	if _, err := execx.LookPath("flutter"); err != nil {
+	look := a.LookPath
+	if look == nil {
+		look = execx.LookPath
+	}
+	if _, err := look("flutter"); err != nil {
 		return adapter.BuildArtifact{}, ternerrors.Wrap(ternerrors.ClassBuild, "flutter not found on PATH", err)
 	}
 
