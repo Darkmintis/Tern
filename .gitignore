@@ -1,0 +1,19 @@
+# Build artifacts
+/bin/
+/dist/
+/tmp/
+*.exe
+/tern
+/local/
+
+# Secrets / signing material (never commit)
+.env
+*.jks
+*.keystore
+*.p12
+*.p8
+*.mobileprovision
+key.properties
+**/play-service-account*.json
+**/google-services.json
+AuthKey_*.p8
