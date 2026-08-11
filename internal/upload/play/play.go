@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/darkmintis/Tern/internal/diagnose"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	"google.golang.org/api/androidpublisher/v3"
 	"google.golang.org/api/option"
@@ -70,22 +71,26 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 			"Play Console → Setup → API access → service account → download JSON → export the path")
 	}
 	if _, err := os.Stat(creds); err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: credentials file", err)
+		return "", ternerrors.WrapHint(ternerrors.ClassUpload,
+			"Play credentials file missing",
+			"export GOOGLE_APPLICATION_CREDENTIALS to an existing service-account JSON path", err)
 	}
 
 	svc, err := androidpublisher.NewService(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, creds))
 	if err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: creating publisher client", err)
+		return "", classifyUpload("play: creating publisher client", err)
 	}
 
 	edit, err := svc.Edits.Insert(req.PackageName, &androidpublisher.AppEdit{}).Context(ctx).Do()
 	if err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: create edit", err)
+		return "", classifyUpload("play: create edit", err)
 	}
 
 	f, err := os.Open(req.ArtifactPath)
 	if err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: open artifact", err)
+		return "", ternerrors.WrapHint(ternerrors.ClassUpload,
+			"cannot open Play artifact",
+			"ensure build produced an .aab/.apk and the path is readable", err)
 	}
 	defer func() {
 		_ = f.Close()
@@ -96,14 +101,14 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		bundle, uerr := svc.Edits.Bundles.Upload(req.PackageName, edit.Id).
 			Context(ctx).Media(f).Do()
 		if uerr != nil {
-			return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: upload bundle", uerr)
+			return "", classifyUpload("play: upload bundle", uerr)
 		}
 		versionCode = bundle.VersionCode
 	} else {
 		apk, uerr := svc.Edits.Apks.Upload(req.PackageName, edit.Id).
 			Context(ctx).Media(f).Do()
 		if uerr != nil {
-			return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: upload apk", uerr)
+			return "", classifyUpload("play: upload apk", uerr)
 		}
 		versionCode = apk.VersionCode
 	}
@@ -131,10 +136,10 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		Releases: []*androidpublisher.TrackRelease{rel},
 	}
 	if _, err := svc.Edits.Tracks.Update(req.PackageName, edit.Id, track, trackUpdate).Context(ctx).Do(); err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: update track", err)
+		return "", classifyUpload("play: update track", err)
 	}
 	if _, err := svc.Edits.Commit(req.PackageName, edit.Id).Context(ctx).Do(); err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: commit edit", err)
+		return "", classifyUpload("play: commit edit", err)
 	}
 
 	msg := fmt.Sprintf("uploaded %s to Play track=%s package=%s versionCode=%d",
@@ -146,4 +151,16 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		msg += " notes=set"
 	}
 	return msg, nil
+}
+
+func classifyUpload(fallback string, err error) error {
+	if err == nil {
+		return nil
+	}
+	text := err.Error()
+	if classified := diagnose.Classify(ternerrors.ClassUpload, fallback, text, err); classified != nil {
+		return classified
+	}
+	return ternerrors.WrapHint(ternerrors.ClassUpload, fallback,
+		"check Play Console access, package id, and credentials — see docs/TROUBLESHOOTING.md", err)
 }
