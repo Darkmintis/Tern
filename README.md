@@ -43,7 +43,7 @@ Build-from-source requires **Go 1.25.12+**.
 
 Full walkthrough: [`docs/getting-started.md`](docs/getting-started.md)  
 Env vars: [`docs/ENV.md`](docs/ENV.md)  
-Troubleshooting: [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)  
+Troubleshooting (licenses, SDK, signing, Play errors): [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)  
 **Copy-paste configs:** [`examples/`](examples/)
 
 ```
