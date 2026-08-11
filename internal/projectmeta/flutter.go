@@ -24,6 +24,34 @@ func FlutterVersion(projectRoot string) (string, error) {
 	return strings.TrimSpace(string(m[1])), nil
 }
 
+var pubspecNameRe = regexp.MustCompile(`(?m)^name:\s*([^\s#]+)`)
+
+// AppDisplayName returns a human app name for release titles (env override, then pubspec name).
+func AppDisplayName(projectRoot string) string {
+	if v := strings.TrimSpace(os.Getenv("TERN_APP_NAME")); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv("APP_DISPLAY_NAME")); v != "" {
+		return v
+	}
+	data, err := os.ReadFile(filepath.Join(projectRoot, "pubspec.yaml"))
+	if err != nil {
+		return ""
+	}
+	if m := pubspecNameRe.FindSubmatch(data); len(m) == 2 {
+		raw := strings.TrimSpace(string(m[1]))
+		raw = strings.ReplaceAll(raw, "_", " ")
+		if raw == "" {
+			return ""
+		}
+		// Title-case first rune for nicer Play release names.
+		r := []rune(raw)
+		r[0] = []rune(strings.ToUpper(string(r[0])))[0]
+		return string(r)
+	}
+	return ""
+}
+
 var (
 	bundleIDPlistRe = regexp.MustCompile(`PRODUCT_BUNDLE_IDENTIFIER\s*=\s*([^;\s]+)`)
 	bundleIDXmlRe   = regexp.MustCompile(`<key>CFBundleIdentifier</key>\s*<string>([^<]+)</string>`)
