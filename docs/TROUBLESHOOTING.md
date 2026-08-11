@@ -1,5 +1,13 @@
 # Troubleshooting
 
+Tern prints a short `error:` plus a `hint:` when something fails. Prefer fixing the hint before digging through full Gradle logs.
+
+```bash
+tern release              # short error + hint (command stderr captured, not dumped)
+tern release --verbose    # stream full logs live; print full captured log on failure
+TERN_VERBOSE=1 tern release
+```
+
 ## `tern doctor` fails
 
 Read each failing check and its `hint:`. Common fixes:
@@ -7,11 +15,33 @@ Read each failing check and its `hint:`. Common fixes:
 | Check | Fix |
 |---|---|
 | `flutter not found` | Install Flutter; ensure `flutter` is on `PATH` |
+| `android_sdk` | Export `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) to your SDK path |
+| `jdk` | Install JDK 17+ and set `JAVA_HOME` |
+| `android_licenses` | Run `flutter doctor --android-licenses` and accept all |
+| `android_cmdline_tools` | Install Android SDK Command-line Tools |
 | `android_signing_gradle` | Wire `key.properties` into `android/app/build.gradle` (Flutter default template) |
 | `env:ANDROID_KEYSTORE` | Export path to a real keystore file |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Download Play service-account JSON and export the path |
 | `sync_certs` | Remove that step from Ternfile (not ready in v0) |
 | `adapter` | Use a Flutter project (`pubspec.yaml` + Flutter SDK) |
+
+## Build / release failures Tern rewrites
+
+| You see | Typical cause | What to do |
+|---|---|---|
+| Android SDK licenses not accepted | Licenses never accepted | `flutter doctor --android-licenses` |
+| Android SDK / ANDROID_HOME not configured | Missing SDK env | Set `ANDROID_HOME`, install platform + build-tools |
+| JDK version incompatible… | JDK too old for AGP | Use JDK 17+ |
+| Android keystore password or alias is wrong | Bad signing env | Fix `ANDROID_KEYSTORE_PASSWORD` / alias / key password |
+| Release build is not signed | Skipped `sign` step | Run `sign android` before release build |
+| Flutter plugin or dependency failed | Pub/plugin compile | `flutter pub get`; pin the failing plugin |
+| CocoaPods install failed | iOS pods | `cd ios && pod install --repo-update` |
+| iOS code signing or provisioning failed | Xcode team/profile | Fix signing in Xcode; `flutter build ipa` once |
+| Play Console denied access | SA lacks app access | Play Console → Users and permissions |
+| App package not found in Play Console | App missing / wrong id | Create app or set `ANDROID_PACKAGE_NAME` |
+| Play versionCode already used | Duplicate build number | `bump version build`, rebuild, upload |
+| Network error talking to store APIs | Offline / proxy | Fix network/VPN; retry |
+| App Store Connect API authentication failed | Bad ASC API key | Check key id / issuer / `.p8` path |
 
 ## Build fails after sign
 
@@ -24,9 +54,10 @@ Read each failing check and its `hint:`. Common fixes:
 | Symptom | Fix |
 |---|---|
 | missing credentials | Set `GOOGLE_APPLICATION_CREDENTIALS` |
-| permission denied | Grant the service account access to the app in Play Console |
+| permission denied / 403 | Grant the service account access to the app in Play Console |
 | wrong package | Set `ANDROID_PACKAGE_NAME` or fix `applicationId` |
 | artifact missing | Ensure `build android release` succeeded and produced an `.aab` |
+| versionCode clash | Bump build number and rebuild |
 
 ## TestFlight upload fails
 
@@ -39,8 +70,10 @@ Read each failing check and its `hint:`. Common fixes:
 ## Useful flags
 
 ```bash
-tern release --dry-run          # no network / no mutating upload
-tern release --json             # machine-readable step events
+tern doctor                   # cheap preflight (SDK, JDK, licenses, secrets)
+tern release --dry-run        # no network / no mutating upload
+tern release --json           # machine-readable step events (includes hint)
+tern release --verbose        # full flutter/gradle/altool logs
 tern run release_ios --dry-run
 ```
 
