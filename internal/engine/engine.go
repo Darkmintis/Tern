@@ -19,6 +19,7 @@ import (
 	"github.com/darkmintis/Tern/internal/output"
 	"github.com/darkmintis/Tern/internal/projectmeta"
 	"github.com/darkmintis/Tern/internal/releasemeta"
+	"github.com/darkmintis/Tern/internal/safety"
 	"github.com/darkmintis/Tern/internal/signing"
 	"github.com/darkmintis/Tern/internal/upload"
 	"github.com/darkmintis/Tern/internal/validate"
@@ -31,6 +32,8 @@ type Options struct {
 	DryRun      bool
 	// Force skips pre-upload validation failures.
 	Force bool
+	// Yes confirms production uploads without a prompt (required in CI).
+	Yes bool
 	// Clean forces flutter clean before builds.
 	Clean bool
 	// SkipIncremental disables fingerprint reuse.
@@ -280,6 +283,8 @@ func (e *Engine) runBuild(
 		Platform:    step.Platform,
 		Mode:        step.Mode,
 		Kind:        kind,
+		Flavor:      step.Flavor,
+		Scheme:      step.Scheme,
 	})
 
 	if !opts.SkipIncremental && !opts.Clean && !opts.DryRun {
@@ -307,6 +312,8 @@ func (e *Engine) runBuild(
 		Platform:     step.Platform,
 		Mode:         step.Mode,
 		ArtifactKind: kind,
+		Flavor:       step.Flavor,
+		Scheme:       step.Scheme,
 		SkipPubGet:   skipPub && !opts.DryRun,
 		Clean:        opts.Clean,
 		DryRun:       opts.DryRun,
@@ -389,10 +396,20 @@ func (e *Engine) runUploadOrShip(
 		_ = vres
 	}
 
+	if err := safety.ConfirmProduction(safety.ConfirmOpts{
+		Target: step.UploadTarget,
+		Track:  step.Track,
+		Yes:    opts.Yes,
+		DryRun: opts.DryRun,
+	}); err != nil {
+		return "", err
+	}
+
 	return e.Upload.Upload(ctx, upload.Options{
 		Platform:    step.Platform,
 		Target:      step.UploadTarget,
 		Track:       step.Track,
+		Rollout:     step.Rollout,
 		Artifact:    artPath,
 		ProjectRoot: root,
 		DryRun:      opts.DryRun,
@@ -442,10 +459,20 @@ func (e *Engine) Ship(ctx context.Context, opts ShipOptions) error {
 		}
 	}
 
+	if err := safety.ConfirmProduction(safety.ConfirmOpts{
+		Target: opts.Target,
+		Track:  opts.Track,
+		Yes:    opts.Yes,
+		DryRun: opts.DryRun,
+	}); err != nil {
+		return err
+	}
+
 	msg, uerr := e.Upload.Upload(ctx, upload.Options{
 		Platform:    platform,
 		Target:      opts.Target,
 		Track:       opts.Track,
+		Rollout:     opts.Rollout,
 		Artifact:    path,
 		ProjectRoot: root,
 		DryRun:      opts.DryRun,
@@ -466,8 +493,10 @@ type ShipOptions struct {
 	From        string // last or path
 	Target      string
 	Track       string
+	Rollout     float64
 	DryRun      bool
 	Force       bool
+	Yes         bool
 	ReleaseSpec releasemeta.Spec
 	Emitter     *output.Emitter
 }

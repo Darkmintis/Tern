@@ -19,6 +19,8 @@ type Options struct {
 	Platform    config.Platform
 	Target      string // play_store | testflight | app_store
 	Track       string
+	// Rollout is Play staged rollout fraction in (0,1); 0 means full/completed.
+	Rollout     float64
 	Artifact    string
 	ProjectRoot string
 	PackageName string
@@ -81,8 +83,12 @@ func (c *Client) Upload(ctx context.Context, opts Options) (string, error) {
 	}
 
 	if opts.DryRun {
-		return fmt.Sprintf("dry-run: would upload %s to %s track:%s artifact:%s name=%q notes=%q",
-			opts.Platform, opts.Target, opts.Track, opts.Artifact, rel.Name, truncate(rel.Notes, 60)), nil
+		roll := ""
+		if opts.Rollout > 0 && opts.Rollout < 1 {
+			roll = fmt.Sprintf(" rollout:%.0f%%", opts.Rollout*100)
+		}
+		return fmt.Sprintf("dry-run: would upload %s to %s track:%s%s artifact:%s name=%q notes=%q",
+			opts.Platform, opts.Target, opts.Track, roll, opts.Artifact, rel.Name, truncate(rel.Notes, 60)), nil
 	}
 	if opts.Artifact == "" {
 		return "", ternerrors.New(ternerrors.ClassUpload, "no artifact to upload — run a build step first")
@@ -108,6 +114,7 @@ func (c *Client) Upload(ctx context.Context, opts Options) (string, error) {
 			ReleaseName:        rel.Name,
 			ReleaseNotes:       rel.Notes,
 			ReleaseNotesLocale: rel.NotesLocale,
+			UserFraction:       opts.Rollout,
 		})
 	case "testflight", "app_store":
 		msg, err := c.ASC.Upload(ctx, asc.UploadRequest{

@@ -24,6 +24,8 @@ type UploadRequest struct {
 	ReleaseNotes string
 	// ReleaseNotesLocale defaults to en-US when notes are set.
 	ReleaseNotesLocale string
+	// UserFraction is a staged rollout in (0,1); 0 or >=1 means completed (100%).
+	UserFraction float64
 }
 
 // Client uploads to Play Console API.
@@ -117,6 +119,10 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		Status:       "completed",
 		VersionCodes: []int64{versionCode},
 	}
+	if frac := req.UserFraction; frac > 0 && frac < 1 {
+		rel.Status = "inProgress"
+		rel.UserFraction = frac
+	}
 	if name := strings.TrimSpace(req.ReleaseName); name != "" {
 		rel.Name = name
 	}
@@ -144,6 +150,9 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 
 	msg := fmt.Sprintf("uploaded %s to Play track=%s package=%s versionCode=%d",
 		filepath.Base(req.ArtifactPath), track, req.PackageName, versionCode)
+	if rel.Status == "inProgress" {
+		msg += fmt.Sprintf(" rollout=%.0f%%", rel.UserFraction*100)
+	}
 	if rel.Name != "" {
 		msg += " name=" + rel.Name
 	}

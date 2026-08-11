@@ -76,6 +76,7 @@ type globalFlags struct {
 	dryRun  bool
 	dir     string
 	force   bool
+	yes     bool
 	clean   bool
 	verbose bool
 }
@@ -97,6 +98,7 @@ func newRoot() *cobra.Command {
 	root.PersistentFlags().BoolVar(&g.dryRun, "dry-run", false, "print what would run without executing builds/uploads")
 	root.PersistentFlags().StringVar(&g.dir, "dir", ".", "project root directory")
 	root.PersistentFlags().BoolVar(&g.force, "force", false, "allow upload/ship despite validation failures")
+	root.PersistentFlags().BoolVarP(&g.yes, "yes", "y", false, "confirm production uploads without prompting (required in CI)")
 	root.PersistentFlags().BoolVar(&g.clean, "clean", false, "run flutter clean before builds")
 	root.PersistentFlags().BoolVarP(&g.verbose, "verbose", "v", false, "stream full command logs; print full stderr on failure")
 
@@ -249,6 +251,7 @@ func cmdBuild(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 
 func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 	var to, track, platform, releaseName, notes, notesFile, notesLocale string
+	var rollout float64
 	c := &cobra.Command{
 		Use:   "ship [artifact]",
 		Short: "Upload a saved artifact without rebuilding (default: last)",
@@ -282,6 +285,13 @@ func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 			if notesLocale != "" {
 				spec.NotesLocale = notesLocale
 			}
+			if rollout != 0 {
+				norm, err := config.NormalizeRollout(rollout)
+				if err != nil {
+					return err
+				}
+				rollout = norm
+			}
 			eng := engine.New(reg)
 			return eng.Ship(context.Background(), engine.ShipOptions{
 				ProjectRoot: g.dir,
@@ -289,8 +299,10 @@ func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 				From:        from,
 				Target:      to,
 				Track:       track,
+				Rollout:     rollout,
 				DryRun:      g.dryRun,
 				Force:       g.force,
+				Yes:         g.yes,
 				ReleaseSpec: spec,
 				Emitter:     emitter(g),
 			})
@@ -298,6 +310,7 @@ func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 	}
 	c.Flags().StringVar(&to, "to", "play_store", "play_store|testflight|app_store")
 	c.Flags().StringVar(&track, "track", "internal", "Play track (android)")
+	c.Flags().Float64Var(&rollout, "rollout", 0, "Play staged rollout: 10 or 0.1 for 10%; 0 = full")
 	c.Flags().StringVar(&platform, "platform", "", "android|ios (inferred from --to if empty)")
 	c.Flags().StringVar(&releaseName, "release-name", "", "version|version_build|… or custom title")
 	c.Flags().StringVar(&notes, "notes", "", "default|none|text, or omit for Bug fixes and improvements.")
@@ -344,6 +357,7 @@ func runLane(g *globalFlags, reg *adapter.Registry, name string) error {
 		ProjectRoot: g.dir,
 		DryRun:      g.dryRun,
 		Force:       g.force,
+		Yes:         g.yes,
 		Clean:       g.clean,
 		Emitter:     emitter(g),
 	})
