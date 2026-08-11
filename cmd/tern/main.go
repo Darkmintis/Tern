@@ -12,12 +12,14 @@ import (
 	"github.com/darkmintis/Tern/internal/adapter/kmp"
 	"github.com/darkmintis/Tern/internal/adapter/native"
 	"github.com/darkmintis/Tern/internal/adapter/reactnative"
+	"github.com/darkmintis/Tern/internal/cache"
 	"github.com/darkmintis/Tern/internal/config"
 	"github.com/darkmintis/Tern/internal/doctor"
 	"github.com/darkmintis/Tern/internal/engine"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	initcmd "github.com/darkmintis/Tern/internal/initcmd"
 	"github.com/darkmintis/Tern/internal/output"
+	"github.com/darkmintis/Tern/internal/validate"
 	"github.com/darkmintis/Tern/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -60,6 +62,8 @@ type globalFlags struct {
 	json   bool
 	dryRun bool
 	dir    string
+	force  bool
+	clean  bool
 }
 
 func newRoot() *cobra.Command {
@@ -68,33 +72,35 @@ func newRoot() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:           "tern",
-		Short:         "Mobile release automation CLI — build, sign, upload without Ruby",
+		Short:         "Optimized mobile release engine — build, validate, ship",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "emit machine-readable JSON events")
 	root.PersistentFlags().BoolVar(&g.dryRun, "dry-run", false, "print what would run without executing builds/uploads")
 	root.PersistentFlags().StringVar(&g.dir, "dir", ".", "project root directory")
+	root.PersistentFlags().BoolVar(&g.force, "force", false, "allow upload/ship despite validation failures")
+	root.PersistentFlags().BoolVar(&g.clean, "clean", false, "run flutter clean before builds")
 
 	root.AddCommand(cmdVersion())
 	root.AddCommand(cmdInit(g, reg))
 	root.AddCommand(cmdDoctor(g, reg))
+	root.AddCommand(cmdValidate(g))
 	root.AddCommand(cmdLanes(g))
 	root.AddCommand(cmdRun(g, reg))
 	root.AddCommand(cmdBuild(g, reg))
+	root.AddCommand(cmdShip(g, reg))
+	root.AddCommand(cmdCache())
 
 	return root
 }
 
 func defaultRegistry() *adapter.Registry {
-	// Flutter is the only active Detect/Build path in v0.
-	// Native / KMP / RN packages stay imported as Phase 2–4 scaffolds.
 	_ = native.Phase
 	_ = kmp.Phase
 	_ = reactnative.Phase
 	return adapter.NewRegistry(
 		flutter.New(nil),
-		// Registered for discovery/docs, but Detect() is false until their phase.
 		native.New(nil),
 		kmp.New(nil),
 		reactnative.New(nil),
@@ -157,6 +163,29 @@ func cmdDoctor(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 	}
 }
 
+func cmdValidate(g *globalFlags) *cobra.Command {
+	var target, artifact, platform string
+	c := &cobra.Command{
+		Use:   "validate",
+		Short: "Pre-release checks before upload/ship (version, artifact, credentials)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, err := validate.Run(validate.Options{
+				ProjectRoot: g.dir,
+				Platform:    config.Platform(platform),
+				Artifact:    artifact,
+				Target:      target,
+				Force:       g.force,
+				Emitter:     emitter(g),
+			})
+			return err
+		},
+	}
+	c.Flags().StringVar(&target, "to", "play_store", "upload target: play_store|testflight|app_store")
+	c.Flags().StringVar(&artifact, "artifact", "last", "artifact path or 'last'")
+	c.Flags().StringVar(&platform, "platform", "android", "android|ios")
+	return c
+}
+
 func cmdLanes(g *globalFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "lanes",
@@ -200,6 +229,64 @@ func cmdBuild(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 	}
 }
 
+func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
+	var to, track, platform string
+	c := &cobra.Command{
+		Use:   "ship [artifact]",
+		Short: "Upload a saved artifact without rebuilding (default: last)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			from := "last"
+			if len(args) == 1 {
+				from = args[0]
+			}
+			eng := engine.New(reg)
+			return eng.Ship(context.Background(), engine.ShipOptions{
+				ProjectRoot: g.dir,
+				Platform:    config.Platform(platform),
+				From:        from,
+				Target:      to,
+				Track:       track,
+				DryRun:      g.dryRun,
+				Force:       g.force,
+				Emitter:     emitter(g),
+			})
+		},
+	}
+	c.Flags().StringVar(&to, "to", "play_store", "play_store|testflight|app_store")
+	c.Flags().StringVar(&track, "track", "internal", "Play track (android)")
+	c.Flags().StringVar(&platform, "platform", "", "android|ios (inferred from --to if empty)")
+	return c
+}
+
+func cmdCache() *cobra.Command {
+	var gha bool
+	var out string
+	c := &cobra.Command{
+		Use:   "cache",
+		Short: "Show or emit CI cache config for pub/Gradle/CocoaPods",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !gha {
+				fmt.Println(cache.Explain())
+				return nil
+			}
+			msg, err := cache.WriteGHAFragment(out)
+			if err != nil {
+				return err
+			}
+			if out == "" || out == "-" {
+				fmt.Print(msg)
+			} else {
+				fmt.Println(msg)
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&gha, "github-actions", false, "emit actions/cache YAML fragment")
+	c.Flags().StringVarP(&out, "output", "o", "-", "write fragment to file (- for stdout)")
+	return c
+}
+
 func runLane(g *globalFlags, reg *adapter.Registry, name string) error {
 	cfg, err := config.Load(g.dir)
 	if err != nil {
@@ -209,6 +296,8 @@ func runLane(g *globalFlags, reg *adapter.Registry, name string) error {
 	return eng.RunLane(context.Background(), cfg, name, engine.Options{
 		ProjectRoot: g.dir,
 		DryRun:      g.dryRun,
+		Force:       g.force,
+		Clean:       g.clean,
 		Emitter:     emitter(g),
 	})
 }
