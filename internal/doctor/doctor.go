@@ -96,10 +96,10 @@ func Run(opts Options) ([]Check, error) {
 				if step.Kind == config.StepSign && step.Platform == config.PlatformAndroid {
 					needsAndroidSign = true
 				}
-				if step.Kind == config.StepUpload && step.UploadTarget == "play_store" {
+				if (step.Kind == config.StepUpload || step.Kind == config.StepShip) && step.UploadTarget == "play_store" {
 					needsPlay = true
 				}
-				if step.Kind == config.StepUpload && (step.UploadTarget == "testflight" || step.UploadTarget == "app_store") {
+				if (step.Kind == config.StepUpload || step.Kind == config.StepShip) && (step.UploadTarget == "testflight" || step.UploadTarget == "app_store") {
 					needsASC = true
 				}
 				if step.Kind == config.StepSyncCerts {
