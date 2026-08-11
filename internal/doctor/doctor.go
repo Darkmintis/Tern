@@ -58,6 +58,16 @@ func Run(opts Options) ([]Check, error) {
 	switch detected {
 	case "flutter":
 		checks = append(checks, requireTool("flutter"))
+		if projectHasAndroid(root) || configNeedsAndroid(opts.Config) {
+			sdkCheck := checkAndroidSDK()
+			checks = append(checks, sdkCheck)
+			checks = append(checks, checkJDK())
+			sdkHome := strings.TrimSpace(os.Getenv("ANDROID_HOME"))
+			if sdkHome == "" {
+				sdkHome = strings.TrimSpace(os.Getenv("ANDROID_SDK_ROOT"))
+			}
+			checks = append(checks, checkFlutterDoctorQuick(sdkHome)...)
+		}
 		if err := gradlecheck.FlutterAndroidSigningConfigured(root); err != nil {
 			checks = append(checks, Check{
 				Name: "android_signing_gradle", OK: false,
