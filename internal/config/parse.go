@@ -100,7 +100,10 @@ func ParseDSL(src string) (*Config, error) {
 }
 
 func parseStep(line string) (Step, error) {
-	parts := strings.Fields(line)
+	parts, err := tokenizeStep(line)
+	if err != nil {
+		return Step{}, err
+	}
 	if len(parts) == 0 {
 		return Step{}, ternerrors.New(ternerrors.ClassConfig, "empty step")
 	}
@@ -187,10 +190,8 @@ func parseShip(parts []string) (Step, error) {
 		return Step{}, ternerrors.New(ternerrors.ClassConfig, fmt.Sprintf("unknown ship target %q", target))
 	}
 	s := Step{Kind: StepShip, Platform: p, ShipFrom: from, UploadTarget: target}
-	for _, extra := range parts[6:] {
-		if strings.HasPrefix(extra, "track:") {
-			s.Track = strings.TrimPrefix(extra, "track:")
-		}
+	if err := applyReleaseExtras(&s, parts[6:]); err != nil {
+		return Step{}, err
 	}
 	return s, nil
 }
@@ -237,10 +238,8 @@ func parseUpload(parts []string) (Step, error) {
 		return Step{}, ternerrors.New(ternerrors.ClassConfig, fmt.Sprintf("unknown upload target %q", target))
 	}
 	s := Step{Kind: StepUpload, Platform: p, UploadTarget: target}
-	for _, extra := range parts[4:] {
-		if strings.HasPrefix(extra, "track:") {
-			s.Track = strings.TrimPrefix(extra, "track:")
-		}
+	if err := applyReleaseExtras(&s, parts[4:]); err != nil {
+		return Step{}, err
 	}
 	return s, nil
 }
@@ -362,10 +361,14 @@ type yamlBuild struct {
 }
 
 type yamlShip struct {
-	Platform string `yaml:"platform"`
-	From     string `yaml:"from"`
-	To       string `yaml:"to"`
-	Track    string `yaml:"track"`
+	Platform    string `yaml:"platform"`
+	From        string `yaml:"from"`
+	To          string `yaml:"to"`
+	Track       string `yaml:"track"`
+	ReleaseName string `yaml:"release_name"`
+	Notes       string `yaml:"notes"`
+	NotesFile   string `yaml:"notes_file"`
+	NotesLocale string `yaml:"notes_locale"`
 }
 
 type yamlSign struct {
@@ -375,9 +378,13 @@ type yamlSign struct {
 }
 
 type yamlUpload struct {
-	Platform string `yaml:"platform"`
-	To       string `yaml:"to"`
-	Track    string `yaml:"track"`
+	Platform    string `yaml:"platform"`
+	To          string `yaml:"to"`
+	Track       string `yaml:"track"`
+	ReleaseName string `yaml:"release_name"`
+	Notes       string `yaml:"notes"`
+	NotesFile   string `yaml:"notes_file"`
+	NotesLocale string `yaml:"notes_locale"`
 }
 
 type yamlBump struct {
@@ -453,6 +460,9 @@ func yamlToStep(ys yamlStep) (Step, error) {
 			return Step{}, err
 		}
 		s = Step{Kind: StepUpload, Platform: p, UploadTarget: ys.Upload.To, Track: ys.Upload.Track, Raw: "upload"}
+		if err := applyYAMLReleaseMeta(&s, ys.Upload.ReleaseName, ys.Upload.Notes, ys.Upload.NotesFile, ys.Upload.NotesLocale); err != nil {
+			return Step{}, err
+		}
 	}
 	if ys.Ship != nil {
 		n++
@@ -465,6 +475,9 @@ func yamlToStep(ys yamlStep) (Step, error) {
 			from = "last"
 		}
 		s = Step{Kind: StepShip, Platform: p, ShipFrom: from, UploadTarget: ys.Ship.To, Track: ys.Ship.Track, Raw: "ship"}
+		if err := applyYAMLReleaseMeta(&s, ys.Ship.ReleaseName, ys.Ship.Notes, ys.Ship.NotesFile, ys.Ship.NotesLocale); err != nil {
+			return Step{}, err
+		}
 	}
 	if ys.Bump != nil {
 		n++
@@ -493,4 +506,31 @@ func yamlToStep(ys yamlStep) (Step, error) {
 		return Step{}, ternerrors.New(ternerrors.ClassConfig, "each YAML step must have exactly one action key")
 	}
 	return s, nil
+}
+
+func applyYAMLReleaseMeta(s *Step, releaseName, notes, notesFile, notesLocale string) error {
+	if releaseName != "" {
+		strategy, custom, err := parseReleaseNameValue(releaseName)
+		if err != nil {
+			return err
+		}
+		s.ReleaseNameStrategy = strategy
+		s.ReleaseNameCustom = custom
+	}
+	if notesFile != "" {
+		s.NotesMode = "file"
+		s.NotesFile = notesFile
+	} else if notes != "" {
+		mode, text, file, err := parseNotesValue(notes)
+		if err != nil {
+			return err
+		}
+		s.NotesMode = mode
+		s.NotesText = text
+		s.NotesFile = file
+	}
+	if notesLocale != "" {
+		s.NotesLocale = notesLocale
+	}
+	return nil
 }
