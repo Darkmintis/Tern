@@ -109,7 +109,7 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 					class, _ := ternerrors.AsClass(err)
 					em.Emit(output.Event{
 						Type: "error", Lane: laneName, Status: "error",
-						Message: err.Error(), ErrorClass: string(class),
+						Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
 					})
 					em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
 					return err
@@ -124,7 +124,7 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 			class, _ := ternerrors.AsClass(err)
 			em.Emit(output.Event{
 				Type: "error", Lane: laneName, Step: step.Raw,
-				Status: "error", Message: err.Error(), ErrorClass: string(class),
+				Status: "error", Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
 			})
 			em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
 			return err
