@@ -22,6 +22,10 @@ const (
 type UploadRequest struct {
 	ArtifactPath string
 	TestFlight   bool
+	// WhatsNew / ReleaseName are resolved by Tern; altool uploads the IPA only.
+	// Notes are persisted by the upload package for operators until ASC localization API lands.
+	WhatsNew    string
+	ReleaseName string
 }
 
 // Client uploads to ASC.
