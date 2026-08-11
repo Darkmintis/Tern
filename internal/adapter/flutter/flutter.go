@@ -9,6 +9,7 @@ import (
 
 	"github.com/darkmintis/Tern/internal/adapter"
 	"github.com/darkmintis/Tern/internal/config"
+	"github.com/darkmintis/Tern/internal/diagnose"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	execx "github.com/darkmintis/Tern/internal/exec"
 )
@@ -71,13 +72,15 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		look = execx.LookPath
 	}
 	if _, err := look("flutter"); err != nil {
-		return adapter.BuildArtifact{}, ternerrors.Wrap(ternerrors.ClassBuild, "flutter not found on PATH", err)
+		return adapter.BuildArtifact{}, ternerrors.WrapHint(ternerrors.ClassBuild,
+			"flutter not found on PATH",
+			"install Flutter and ensure `flutter` is on PATH, then re-run", err)
 	}
 
 	if opts.Clean {
 		if _, err := a.Runner.Run(ctx, opts.ProjectRoot, "flutter", "clean"); err != nil {
-			return adapter.BuildArtifact{}, ternerrors.WrapHint(ternerrors.ClassBuild,
-				"flutter clean failed", "fix the clean error or omit --clean", err)
+			return adapter.BuildArtifact{}, classifyBuildErr("flutter clean failed",
+				"fix the clean error or omit --clean", err)
 		}
 	}
 
@@ -111,8 +114,7 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		if opts.Platform == config.PlatformIOS {
 			hint = "iOS release requires macOS, Xcode signing, and a valid team — try `flutter build ipa` manually"
 		}
-		return adapter.BuildArtifact{}, ternerrors.WrapHint(ternerrors.ClassBuild,
-			fmt.Sprintf("flutter build %s", opts.Platform), hint, err)
+		return adapter.BuildArtifact{}, classifyBuildErr(fmt.Sprintf("flutter build %s failed", opts.Platform), hint, err)
 	}
 
 	outPath := path
@@ -136,6 +138,17 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		outPath = resolved
 	}
 	return adapter.BuildArtifact{Path: outPath, Platform: opts.Platform, Kind: kind}, nil
+}
+
+func classifyBuildErr(fallbackMsg, fallbackHint string, err error) error {
+	text := ternerrors.StderrOf(err)
+	if text == "" {
+		text = err.Error()
+	}
+	if classified := diagnose.Classify(ternerrors.ClassBuild, fallbackMsg, text, err); classified != nil {
+		return classified
+	}
+	return ternerrors.WrapHint(ternerrors.ClassBuild, fallbackMsg, fallbackHint, err)
 }
 
 func expectedArtifact(root string, platform config.Platform, mode config.Mode, artifactKind string) (kind, path string) {
