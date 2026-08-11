@@ -23,6 +23,8 @@ type Error struct {
 	Message string
 	Hint    string
 	Err     error
+	// Stderr is a truncated command stderr tail (optional).
+	Stderr string
 }
 
 func (e *Error) Error() string {
@@ -35,11 +37,15 @@ func (e *Error) Error() string {
 func (e *Error) Unwrap() error { return e.Err }
 
 func Wrap(class Class, msg string, err error) error {
-	return &Error{Class: class, Message: msg, Err: err}
+	return &Error{Class: class, Message: msg, Err: err, Stderr: StderrOf(err)}
 }
 
 func WrapHint(class Class, msg, hint string, err error) error {
-	return &Error{Class: class, Message: msg, Hint: hint, Err: err}
+	return &Error{Class: class, Message: msg, Hint: hint, Err: err, Stderr: StderrOf(err)}
+}
+
+func WrapStderr(class Class, msg, stderr string, err error) error {
+	return &Error{Class: class, Message: msg, Err: err, Stderr: TruncateStderr(stderr)}
 }
 
 func New(class Class, msg string) error {
@@ -65,6 +71,37 @@ func HintOf(err error) string {
 		return te.Hint
 	}
 	return ""
+}
+
+// MessageOf returns the short Tern message without class prefix.
+func MessageOf(err error) string {
+	var te *Error
+	if errors.As(err, &te) {
+		return te.Message
+	}
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// StderrOf returns captured command stderr if present.
+func StderrOf(err error) string {
+	var te *Error
+	if errors.As(err, &te) {
+		return te.Stderr
+	}
+	return ""
+}
+
+const maxStderr = 16 * 1024
+
+// TruncateStderr keeps the last maxStderr bytes for diagnosis.
+func TruncateStderr(s string) string {
+	if len(s) <= maxStderr {
+		return s
+	}
+	return s[len(s)-maxStderr:]
 }
 
 // ExitCode maps error class to process exit code.
