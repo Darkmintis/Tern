@@ -48,17 +48,20 @@ func (m *Manager) ValidateRefs(opts SignOptions) error {
 		return err
 	}
 	if secrets.IsWeak(val) {
-		return ternerrors.New(ternerrors.ClassDoctor, "weak secret for env:"+opts.EnvRef)
+		return ternerrors.NewHint(ternerrors.ClassDoctor, "weak secret for env:"+opts.EnvRef,
+			"use a strong password/path from CI secrets — not placeholder values like 'password'")
 	}
 	if stringsLooksLikePath(val) {
 		if err := secrets.FileReadable(val); err != nil {
-			return ternerrors.Wrap(ternerrors.ClassSign, "signing material", err)
+			return ternerrors.WrapHint(ternerrors.ClassSign, "signing material missing or unreadable",
+				"export env:"+opts.EnvRef+" to a readable keystore/cert path", err)
 		}
 	}
 	if opts.Platform == config.PlatformAndroid {
 		for _, name := range []string{EnvKeystorePassword, EnvKeyAlias, EnvKeyPassword} {
 			if err := secrets.CheckEnvStrong(name); err != nil {
-				return ternerrors.Wrap(ternerrors.ClassSign, "android signing env", err)
+				return ternerrors.WrapHint(ternerrors.ClassSign, "android signing env incomplete",
+					"set ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD", err)
 			}
 		}
 	}
@@ -146,7 +149,8 @@ func WriteAndroidKeyProperties(projectRoot, keystoreEnv string) (string, error) 
 		}
 	}
 	if err := secrets.FileReadable(storeFile); err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassSign, "keystore", err)
+		return "", ternerrors.WrapHint(ternerrors.ClassSign, "keystore file missing or unreadable",
+			"export ANDROID_KEYSTORE to a real .jks/.keystore path", err)
 	}
 
 	androidDir := filepath.Join(projectRoot, "android")
