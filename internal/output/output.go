@@ -18,14 +18,15 @@ const (
 
 // Event is a machine-readable lane step event (agent-ready).
 type Event struct {
-	Type       string `json:"type"` // step_start | step_end | lane_start | lane_end | doctor | error
-	Lane       string `json:"lane,omitempty"`
-	Step       string `json:"step,omitempty"`
-	Status     string `json:"status,omitempty"` // ok | error | dry_run
-	Message    string `json:"message,omitempty"`
-	DurationMs int64  `json:"duration_ms,omitempty"`
-	ErrorClass string `json:"error_class,omitempty"`
-	TS         string `json:"ts"`
+	Type          string `json:"type"` // step_start | step_end | lane_start | lane_end | doctor | validate | error
+	Lane          string `json:"lane,omitempty"`
+	Step          string `json:"step,omitempty"`
+	Status        string `json:"status,omitempty"` // ok | error | dry_run | skipped
+	Message       string `json:"message,omitempty"`
+	DurationMs    int64  `json:"duration_ms,omitempty"`
+	ErrorClass    string `json:"error_class,omitempty"`
+	ParallelGroup string `json:"parallel_group,omitempty"`
+	TS            string `json:"ts"`
 }
 
 // Emitter writes human logs and optional JSON lines.
