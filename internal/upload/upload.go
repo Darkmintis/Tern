@@ -3,10 +3,13 @@ package upload
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/darkmintis/Tern/internal/config"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	"github.com/darkmintis/Tern/internal/projectmeta"
+	"github.com/darkmintis/Tern/internal/releasemeta"
 	"github.com/darkmintis/Tern/internal/upload/asc"
 	"github.com/darkmintis/Tern/internal/upload/play"
 )
@@ -20,6 +23,9 @@ type Options struct {
 	ProjectRoot string
 	PackageName string
 	DryRun      bool
+	// Release meta (resolved before Upload when Spec is set, or pass Resolved).
+	ReleaseSpec releasemeta.Spec
+	Release     *releasemeta.Resolved
 }
 
 // Client uploads artifacts to stores.
@@ -35,11 +41,48 @@ func NewClient() *Client {
 	}
 }
 
+// SpecFromStep maps Ternfile step fields into a release Spec.
+func SpecFromStep(step config.Step) releasemeta.Spec {
+	s := releasemeta.DefaultSpec()
+	if step.ReleaseNameStrategy != "" {
+		s.NameStrategy = releasemeta.NameStrategy(step.ReleaseNameStrategy)
+	}
+	if step.ReleaseNameCustom != "" {
+		s.NameStrategy = releasemeta.NameCustom
+		s.NameCustom = step.ReleaseNameCustom
+	}
+	if step.NotesMode != "" {
+		s.NotesMode = releasemeta.NotesMode(step.NotesMode)
+	}
+	if step.NotesText != "" {
+		s.NotesMode = releasemeta.NotesText
+		s.NotesText = step.NotesText
+	}
+	if step.NotesFile != "" {
+		s.NotesMode = releasemeta.NotesFile
+		s.NotesFile = step.NotesFile
+	}
+	if step.NotesLocale != "" {
+		s.NotesLocale = step.NotesLocale
+	}
+	return s
+}
+
 // Upload dispatches to Play or App Store Connect.
 func (c *Client) Upload(ctx context.Context, opts Options) (string, error) {
+	root := opts.ProjectRoot
+	rel := opts.Release
+	if rel == nil {
+		resolved, err := releasemeta.Resolve(root, opts.ReleaseSpec)
+		if err != nil {
+			return "", err
+		}
+		rel = &resolved
+	}
+
 	if opts.DryRun {
-		return fmt.Sprintf("dry-run: would upload %s to %s track:%s artifact:%s",
-			opts.Platform, opts.Target, opts.Track, opts.Artifact), nil
+		return fmt.Sprintf("dry-run: would upload %s to %s track:%s artifact:%s name=%q notes=%q",
+			opts.Platform, opts.Target, opts.Track, opts.Artifact, rel.Name, truncate(rel.Notes, 60)), nil
 	}
 	if opts.Artifact == "" {
 		return "", ternerrors.New(ternerrors.ClassUpload, "no artifact to upload — run a build step first")
@@ -51,24 +94,56 @@ func (c *Client) Upload(ctx context.Context, opts Options) (string, error) {
 			track = "internal"
 		}
 		pkg := opts.PackageName
-		if pkg == "" && opts.ProjectRoot != "" {
+		if pkg == "" && root != "" {
 			var err error
-			pkg, err = projectmeta.AndroidPackageID(opts.ProjectRoot)
+			pkg, err = projectmeta.AndroidPackageID(root)
 			if err != nil {
 				return "", err
 			}
 		}
 		return c.Play.Upload(ctx, play.UploadRequest{
-			ArtifactPath: opts.Artifact,
-			Track:        track,
-			PackageName:  pkg,
+			ArtifactPath:       opts.Artifact,
+			Track:              track,
+			PackageName:        pkg,
+			ReleaseName:        rel.Name,
+			ReleaseNotes:       rel.Notes,
+			ReleaseNotesLocale: rel.NotesLocale,
 		})
 	case "testflight", "app_store":
-		return c.ASC.Upload(ctx, asc.UploadRequest{
+		msg, err := c.ASC.Upload(ctx, asc.UploadRequest{
 			ArtifactPath: opts.Artifact,
 			TestFlight:   opts.Target == "testflight",
+			WhatsNew:     rel.Notes,
+			ReleaseName:  rel.Name,
 		})
+		if err != nil {
+			return "", err
+		}
+		// Persist resolved What's New for operators / future ASC localization API.
+		if root != "" && (rel.Notes != "" || rel.Name != "") {
+			_ = writeIOSReleaseMeta(root, *rel)
+		}
+		if rel.Notes != "" {
+			msg += " (What's New saved under .tern/artifacts/ios-release-meta.json; set in App Store Connect if needed)"
+		}
+		return msg, nil
 	default:
 		return "", ternerrors.New(ternerrors.ClassUpload, "unknown upload target: "+opts.Target)
 	}
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
+func writeIOSReleaseMeta(root string, rel releasemeta.Resolved) error {
+	dir := filepath.Join(root, ".tern", "artifacts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	body := fmt.Sprintf("name=%s\nlocale=%s\nnotes:\n%s\n", rel.Name, rel.NotesLocale, rel.Notes)
+	return os.WriteFile(filepath.Join(dir, "ios-release-meta.txt"), []byte(body), 0o644)
 }
