@@ -18,6 +18,7 @@ import (
 	"github.com/darkmintis/Tern/internal/fingerprint"
 	"github.com/darkmintis/Tern/internal/output"
 	"github.com/darkmintis/Tern/internal/projectmeta"
+	"github.com/darkmintis/Tern/internal/releasemeta"
 	"github.com/darkmintis/Tern/internal/signing"
 	"github.com/darkmintis/Tern/internal/upload"
 	"github.com/darkmintis/Tern/internal/validate"
@@ -395,6 +396,7 @@ func (e *Engine) runUploadOrShip(
 		Artifact:    artPath,
 		ProjectRoot: root,
 		DryRun:      opts.DryRun,
+		ReleaseSpec: upload.SpecFromStep(step),
 	})
 }
 
@@ -447,6 +449,7 @@ func (e *Engine) Ship(ctx context.Context, opts ShipOptions) error {
 		Artifact:    path,
 		ProjectRoot: root,
 		DryRun:      opts.DryRun,
+		ReleaseSpec: opts.ReleaseSpec,
 	})
 	if uerr != nil {
 		em.Emit(output.Event{Type: "ship_end", Status: "error", Message: uerr.Error()})
@@ -465,6 +468,7 @@ type ShipOptions struct {
 	Track       string
 	DryRun      bool
 	Force       bool
+	ReleaseSpec releasemeta.Spec
 	Emitter     *output.Emitter
 }
 
