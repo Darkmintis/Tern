@@ -12,6 +12,7 @@ lane release_all:
   bump version patch
   sign android with keystore env:ANDROID_KEYSTORE
   sign ios with cert env:IOS_CERT
+  # Independent builds run in parallel (errgroup)
   build android release
   build ios release
   upload android to play_store track:internal
@@ -30,3 +31,6 @@ lane release_ios:
   sign ios with cert env:IOS_CERT
   build ios release
   upload ios to testflight
+
+lane ship_android:
+  ship android from last to play_store track:internal

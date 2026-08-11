@@ -4,9 +4,9 @@ Copy these into a real Flutter app. They are **config samples**, not full apps.
 
 | Example | What it shows |
 |---|---|
-| [`flutter-android-play/`](flutter-android-play/) | Bump → sign → AAB → Play internal track |
+| [`flutter-android-play/`](flutter-android-play/) | Bump → sign → AAB → Play; `ship_retry` without rebuild |
 | [`flutter-ios-testflight/`](flutter-ios-testflight/) | Sign → IPA → TestFlight (macOS) |
-| [`flutter-both/`](flutter-both/) | Android + iOS in one `release_all` lane |
+| [`flutter-both/`](flutter-both/) | Android + iOS parallel builds + ship lane |
 
 ## How to use
 

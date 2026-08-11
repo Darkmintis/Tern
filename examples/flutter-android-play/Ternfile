@@ -13,7 +13,11 @@ lane release:
   upload android to play_store track:internal
   tag git prefix:v
 
-# Other tracks when ready:
-#   upload android to play_store track:alpha
-#   upload android to play_store track:beta
-#   upload android to play_store track:production
+# After a failed Play upload (same AAB, no rebuild):
+#   tern ship last --to play_store --track internal
+# or:
+lane ship_retry:
+  ship android from last to play_store track:internal
+
+# Explicit APK instead of default AAB:
+#   build android release apk
