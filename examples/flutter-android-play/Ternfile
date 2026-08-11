@@ -10,14 +10,17 @@ lane release:
   bump version patch
   sign android with keystore env:ANDROID_KEYSTORE
   build android release
-  upload android to play_store track:internal
+  # release_name defaults to marketing version; notes default to "Bug fixes and improvements."
+  upload android to play_store track:internal release_name:version_build
   tag git prefix:v
 
 # After a failed Play upload (same AAB, no rebuild):
 #   tern ship last --to play_store --track internal
 # or:
 lane ship_retry:
-  ship android from last to play_store track:internal
+  ship android from last to play_store track:internal release_name:version_build notes:default
 
+# Custom notes for a production push:
+#   upload android to play_store track:production notes:"Fixed checkout crash on Android 14."
 # Explicit APK instead of default AAB:
 #   build android release apk
