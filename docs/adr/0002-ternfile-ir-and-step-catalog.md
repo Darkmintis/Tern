@@ -17,9 +17,10 @@ Both the Ternfile DSL and `ternfile.yaml` compile to one internal representation
 
 | Kind | DSL shape | Notes |
 |---|---|---|
-| `build` | `build <android\|ios> <debug\|release>` | Adapter builds artifact |
+| `build` | `build <android\|ios> <debug\|release> [aab\|apk]` | Adapter builds artifact; android release defaults to aab |
 | `sign` | `sign <android\|ios> with <keystore\|cert> env:<NAME>` | Shared signing |
-| `upload` | `upload <android\|ios> to <play_store\|testflight\|app_store> [track:<name>]` | Shared upload |
+| `upload` | `upload <android\|ios> to <play_store\|testflight\|app_store> [track:<name>]` | Shared upload (validates first) |
+| `ship` | `ship <android\|ios> from <last\|path> to <target> [track:<name>]` | Upload saved artifact without rebuild |
 | `bump` | `bump version [major\|minor\|patch\|build]` | Phase 1.5 |
 | `tag` | `tag git [prefix:v]` | Phase 1.5 |
 | `sync_certs` | `sync_certs <pull\|push> [repo:env:CERT_REPO]` | Phase 1.5; encrypted cert sync |

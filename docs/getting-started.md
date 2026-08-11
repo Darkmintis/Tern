@@ -65,8 +65,18 @@ tern run release_ios
 - uses: actions/checkout@v4
 - uses: subosito/flutter-action@v2
 - uses: darkmintis/Tern/action/setup-tern@main
+# or: tern cache --github-actions
 - run: tern doctor
 - run: tern release
+```
+
+## 6. Ship without rebuild
+
+After a successful build, Tern stores metadata under `.tern/artifacts/`. If Play upload fails:
+
+```bash
+tern validate --to play_store --artifact last
+tern ship last --to play_store --track internal
 ```
 
 ## Next
@@ -74,4 +84,5 @@ tern run release_ios
 - Env reference: [ENV.md](ENV.md)  
 - Troubleshooting: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)  
 - Example configs: [../examples/](../examples/)  
+- Release Engine: [adr/0006-release-engine.md](adr/0006-release-engine.md)  
 - Future adapters: [adapters.md](adapters.md)  
