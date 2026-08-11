@@ -17,6 +17,7 @@ import (
 	"github.com/darkmintis/Tern/internal/doctor"
 	"github.com/darkmintis/Tern/internal/engine"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
+	execx "github.com/darkmintis/Tern/internal/exec"
 	initcmd "github.com/darkmintis/Tern/internal/initcmd"
 	"github.com/darkmintis/Tern/internal/output"
 	"github.com/darkmintis/Tern/internal/releasemeta"
@@ -33,9 +34,20 @@ func main() {
 	}
 	if err := root.Execute(); err != nil {
 		code := ternerrors.ExitCode(err)
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		msg := ternerrors.MessageOf(err)
+		if msg == "" {
+			msg = err.Error()
+		}
+		fmt.Fprintf(os.Stderr, "error: %s\n", msg)
 		if hint := ternerrors.HintOf(err); hint != "" {
 			fmt.Fprintf(os.Stderr, "hint: %s\n", hint)
+		}
+		if log := ternerrors.StderrOf(err); log != "" {
+			if execx.Verbose() {
+				fmt.Fprintf(os.Stderr, "\n--- full log ---\n%s\n", strings.TrimRight(log, "\n"))
+			} else {
+				fmt.Fprintf(os.Stderr, "log: re-run with --verbose (or TERN_VERBOSE=1) to see the full command output\n")
+			}
 		}
 		os.Exit(code)
 	}
@@ -60,11 +72,12 @@ func rewriteLaneShorthand(root *cobra.Command, args []string) []string {
 }
 
 type globalFlags struct {
-	json   bool
-	dryRun bool
-	dir    string
-	force  bool
-	clean  bool
+	json    bool
+	dryRun  bool
+	dir     string
+	force   bool
+	clean   bool
+	verbose bool
 }
 
 func newRoot() *cobra.Command {
@@ -76,12 +89,16 @@ func newRoot() *cobra.Command {
 		Short:         "Optimized mobile release engine — build, validate, ship",
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			execx.SetVerbose(g.verbose)
+		},
 	}
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "emit machine-readable JSON events")
 	root.PersistentFlags().BoolVar(&g.dryRun, "dry-run", false, "print what would run without executing builds/uploads")
 	root.PersistentFlags().StringVar(&g.dir, "dir", ".", "project root directory")
 	root.PersistentFlags().BoolVar(&g.force, "force", false, "allow upload/ship despite validation failures")
 	root.PersistentFlags().BoolVar(&g.clean, "clean", false, "run flutter clean before builds")
+	root.PersistentFlags().BoolVarP(&g.verbose, "verbose", "v", false, "stream full command logs; print full stderr on failure")
 
 	root.AddCommand(cmdVersion())
 	root.AddCommand(cmdInit(g, reg))
