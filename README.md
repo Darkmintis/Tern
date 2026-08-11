@@ -1,8 +1,8 @@
 # Tern
 
-Open-source **mobile release automation CLI** for Android & iOS.
+Open-source **optimized mobile release engine** for Android & iOS (Flutter first).
 
-**v0 supports Flutter end-to-end** (bump → sign → build → Play / TestFlight).  
+**v0 supports Flutter end-to-end** (bump → sign → build → validate → Play / TestFlight).  
 Native, KMP, and React Native packages are scaffolds for later — see [`docs/adapters.md`](docs/adapters.md).
 
 ```bash
@@ -10,7 +10,23 @@ tern init
 tern doctor
 tern release --dry-run
 tern release
+# retry upload without rebuild:
+tern ship last --to play_store
 ```
+
+## Release Engine
+
+Tern focuses on the path from commit → store:
+
+- **Selective builds** — only platforms your lane needs; AAB by default (APK on request)
+- **Artifact-first** — successful builds land in `.tern/artifacts/`; `tern ship` retries upload without `flutter build`
+- **Pre-release validation** — `tern validate` / upload gate checks version, artifact, credentials
+- **Parallel builds** — independent Android + iOS builds run concurrently
+- **CI caching** — `tern cache --github-actions` (also baked into `tern init` workflows)
+- **Dependency skip** — unchanged lockfiles → `--no-pub` on Flutter builds
+- **Incremental builds** — unchanged inputs reuse the last artifact (never `flutter clean` unless `--clean`)
+
+See [ADR 0006](docs/adr/0006-release-engine.md). Benchmark protocol: [`benchmarks/`](benchmarks/) (no public speed comparisons until results exist).
 
 ## Install
 
