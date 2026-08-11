@@ -98,6 +98,29 @@ lanes:
 	}
 }
 
+func TestParseDSL_ShipAndArtifactKind(t *testing.T) {
+	src := `
+lane release:
+  build android release aab
+  build android release apk
+  ship android from last to play_store track:internal
+`
+	cfg, err := config.ParseDSL(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lane := cfg.Lanes["release"]
+	if lane.Steps[0].ArtifactKind != config.ArtifactAAB {
+		t.Fatalf("aab: %+v", lane.Steps[0])
+	}
+	if lane.Steps[1].ArtifactKind != config.ArtifactAPK {
+		t.Fatalf("apk: %+v", lane.Steps[1])
+	}
+	if lane.Steps[2].Kind != config.StepShip || lane.Steps[2].ShipFrom != "last" {
+		t.Fatalf("ship: %+v", lane.Steps[2])
+	}
+}
+
 func TestParseDSL_TableDriven(t *testing.T) {
 	cases := []struct {
 		name    string

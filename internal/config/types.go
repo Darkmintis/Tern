@@ -23,10 +23,20 @@ const (
 	StepBuild     StepKind = "build"
 	StepSign      StepKind = "sign"
 	StepUpload    StepKind = "upload"
+	StepShip      StepKind = "ship"
 	StepBump      StepKind = "bump"
 	StepTag       StepKind = "tag"
 	StepSyncCerts StepKind = "sync_certs"
 	StepNotify    StepKind = "notify"
+)
+
+// ArtifactKind is the binary format for a build (android: aab default, apk optional).
+type ArtifactKind string
+
+const (
+	ArtifactAAB ArtifactKind = "aab"
+	ArtifactAPK ArtifactKind = "apk"
+	ArtifactIPA ArtifactKind = "ipa"
 )
 
 // BumpLevel for version bumps.
@@ -44,6 +54,8 @@ type Step struct {
 	Kind     StepKind
 	Platform Platform
 	Mode     Mode
+	// ArtifactKind is aab|apk for android builds (default aab for release).
+	ArtifactKind ArtifactKind
 	// SignWith is "keystore" or "cert".
 	SignWith string
 	// EnvRef is the environment variable name (without env: prefix).
@@ -51,8 +63,10 @@ type Step struct {
 	// UploadTarget is play_store, testflight, or app_store.
 	UploadTarget string
 	Track        string
-	BumpLevel    BumpLevel
-	TagPrefix    string
+	// ShipFrom is "last" or an explicit artifact path.
+	ShipFrom  string
+	BumpLevel BumpLevel
+	TagPrefix string
 	// SyncAction is pull or push.
 	SyncAction string
 	NotifyVia  string

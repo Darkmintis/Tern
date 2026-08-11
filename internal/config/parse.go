@@ -111,6 +111,8 @@ func parseStep(line string) (Step, error) {
 		return parseSign(parts)
 	case "upload":
 		return parseUpload(parts)
+	case "ship":
+		return parseShip(parts)
 	case "bump":
 		return parseBump(parts)
 	case "tag":
@@ -125,7 +127,7 @@ func parseStep(line string) (Step, error) {
 }
 
 func parseBuild(parts []string) (Step, error) {
-	// build android release
+	// build android release [aab|apk]
 	if len(parts) < 3 {
 		return Step{}, ternerrors.New(ternerrors.ClassConfig, "build requires platform and mode")
 	}
@@ -137,7 +139,60 @@ func parseBuild(parts []string) (Step, error) {
 	if err != nil {
 		return Step{}, err
 	}
-	return Step{Kind: StepBuild, Platform: p, Mode: m}, nil
+	s := Step{Kind: StepBuild, Platform: p, Mode: m}
+	for _, extra := range parts[3:] {
+		switch extra {
+		case "aab":
+			s.ArtifactKind = ArtifactAAB
+		case "apk":
+			s.ArtifactKind = ArtifactAPK
+		default:
+			return Step{}, ternerrors.New(ternerrors.ClassConfig, fmt.Sprintf("unknown build option %q", extra))
+		}
+	}
+	if s.ArtifactKind == "" && p == PlatformAndroid && m == ModeRelease {
+		s.ArtifactKind = ArtifactAAB
+	}
+	if s.ArtifactKind == "" && p == PlatformAndroid && m == ModeDebug {
+		s.ArtifactKind = ArtifactAPK
+	}
+	if s.ArtifactKind == "" && p == PlatformIOS {
+		s.ArtifactKind = ArtifactIPA
+	}
+	return s, nil
+}
+
+func parseShip(parts []string) (Step, error) {
+	// ship android from last to play_store track:internal
+	// ship ios from path/to.ipa to testflight
+	if len(parts) < 6 {
+		return Step{}, ternerrors.New(ternerrors.ClassConfig,
+			"ship requires: ship <platform> from <last|path> to <target>")
+	}
+	p, err := parsePlatform(parts[1])
+	if err != nil {
+		return Step{}, err
+	}
+	if parts[2] != "from" {
+		return Step{}, ternerrors.New(ternerrors.ClassConfig, "ship: expected 'from'")
+	}
+	from := parts[3]
+	if parts[4] != "to" {
+		return Step{}, ternerrors.New(ternerrors.ClassConfig, "ship: expected 'to'")
+	}
+	target := parts[5]
+	switch target {
+	case "play_store", "testflight", "app_store":
+	default:
+		return Step{}, ternerrors.New(ternerrors.ClassConfig, fmt.Sprintf("unknown ship target %q", target))
+	}
+	s := Step{Kind: StepShip, Platform: p, ShipFrom: from, UploadTarget: target}
+	for _, extra := range parts[6:] {
+		if strings.HasPrefix(extra, "track:") {
+			s.Track = strings.TrimPrefix(extra, "track:")
+		}
+	}
+	return s, nil
 }
 
 func parseSign(parts []string) (Step, error) {
@@ -293,6 +348,7 @@ type yamlStep struct {
 	Build     *yamlBuild     `yaml:"build"`
 	Sign      *yamlSign      `yaml:"sign"`
 	Upload    *yamlUpload    `yaml:"upload"`
+	Ship      *yamlShip      `yaml:"ship"`
 	Bump      *yamlBump      `yaml:"bump"`
 	Tag       *yamlTag       `yaml:"tag"`
 	SyncCerts *yamlSyncCerts `yaml:"sync_certs"`
@@ -302,6 +358,14 @@ type yamlStep struct {
 type yamlBuild struct {
 	Platform string `yaml:"platform"`
 	Mode     string `yaml:"mode"`
+	Kind     string `yaml:"kind"` // aab | apk
+}
+
+type yamlShip struct {
+	Platform string `yaml:"platform"`
+	From     string `yaml:"from"`
+	To       string `yaml:"to"`
+	Track    string `yaml:"track"`
 }
 
 type yamlSign struct {
@@ -368,7 +432,11 @@ func yamlToStep(ys yamlStep) (Step, error) {
 		if err != nil {
 			return Step{}, err
 		}
-		s = Step{Kind: StepBuild, Platform: p, Mode: m, Raw: "build"}
+		kind := ArtifactKind(ys.Build.Kind)
+		if kind == "" && p == PlatformAndroid && m == ModeRelease {
+			kind = ArtifactAAB
+		}
+		s = Step{Kind: StepBuild, Platform: p, Mode: m, ArtifactKind: kind, Raw: "build"}
 	}
 	if ys.Sign != nil {
 		n++
@@ -385,6 +453,18 @@ func yamlToStep(ys yamlStep) (Step, error) {
 			return Step{}, err
 		}
 		s = Step{Kind: StepUpload, Platform: p, UploadTarget: ys.Upload.To, Track: ys.Upload.Track, Raw: "upload"}
+	}
+	if ys.Ship != nil {
+		n++
+		p, err := parsePlatform(ys.Ship.Platform)
+		if err != nil {
+			return Step{}, err
+		}
+		from := ys.Ship.From
+		if from == "" {
+			from = "last"
+		}
+		s = Step{Kind: StepShip, Platform: p, ShipFrom: from, UploadTarget: ys.Ship.To, Track: ys.Ship.Track, Raw: "ship"}
 	}
 	if ys.Bump != nil {
 		n++
