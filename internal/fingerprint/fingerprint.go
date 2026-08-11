@@ -18,6 +18,8 @@ type Input struct {
 	Platform    config.Platform
 	Mode        config.Mode
 	Kind        string // aab, apk, ipa
+	Flavor      string
+	Scheme      string
 }
 
 // Compute hashes relevant sources + lockfiles for skip-rebuild decisions.
@@ -26,6 +28,8 @@ func Compute(in Input) (string, error) {
 	_, _ = io.WriteString(h, "platform="+string(in.Platform)+"\n")
 	_, _ = io.WriteString(h, "mode="+string(in.Mode)+"\n")
 	_, _ = io.WriteString(h, "kind="+in.Kind+"\n")
+	_, _ = io.WriteString(h, "flavor="+in.Flavor+"\n")
+	_, _ = io.WriteString(h, "scheme="+in.Scheme+"\n")
 
 	files := []string{
 		filepath.Join(in.ProjectRoot, "pubspec.yaml"),

@@ -62,8 +62,16 @@ func findSub(s, sub string) bool {
 	return false
 }
 
+func effectiveFlavor(opts adapter.BuildOptions) string {
+	if opts.Flavor != "" {
+		return opts.Flavor
+	}
+	return opts.Scheme
+}
+
 func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter.BuildArtifact, error) {
-	kind, path := expectedArtifact(opts.ProjectRoot, opts.Platform, opts.Mode, opts.ArtifactKind)
+	flavor := effectiveFlavor(opts)
+	kind, path := expectedArtifact(opts.ProjectRoot, opts.Platform, opts.Mode, opts.ArtifactKind, flavor)
 	if opts.DryRun {
 		return adapter.BuildArtifact{Path: path, Platform: opts.Platform, Kind: kind}, nil
 	}
@@ -105,6 +113,9 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 	default:
 		return adapter.BuildArtifact{}, ternerrors.New(ternerrors.ClassBuild, "unsupported platform")
 	}
+	if flavor != "" {
+		args = append(args, "--flavor", flavor)
+	}
 	if opts.SkipPubGet {
 		args = append(args, "--no-pub")
 	}
@@ -113,6 +124,9 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		hint := "run `flutter doctor` and ensure the project builds with `flutter build` manually first"
 		if opts.Platform == config.PlatformIOS {
 			hint = "iOS release requires macOS, Xcode signing, and a valid team — try `flutter build ipa` manually"
+		}
+		if flavor != "" {
+			hint += fmt.Sprintf("; verify flavor/scheme %q exists in the project", flavor)
 		}
 		return adapter.BuildArtifact{}, classifyBuildErr(fmt.Sprintf("flutter build %s failed", opts.Platform), hint, err)
 	}
@@ -129,7 +143,7 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		kind = "ipa"
 	}
 	if opts.Platform == config.PlatformAndroid {
-		resolved, err := resolveAndroidArtifact(outPath)
+		resolved, err := resolveAndroidArtifact(outPath, opts.ProjectRoot, kind, flavor)
 		if err != nil {
 			return adapter.BuildArtifact{}, ternerrors.WrapHint(ternerrors.ClassBuild,
 				"flutter produced no android artifact",
@@ -151,15 +165,27 @@ func classifyBuildErr(fallbackMsg, fallbackHint string, err error) error {
 	return ternerrors.WrapHint(ternerrors.ClassBuild, fallbackMsg, fallbackHint, err)
 }
 
-func expectedArtifact(root string, platform config.Platform, mode config.Mode, artifactKind string) (kind, path string) {
+func expectedArtifact(root string, platform config.Platform, mode config.Mode, artifactKind, flavor string) (kind, path string) {
 	switch platform {
 	case config.PlatformAndroid:
 		wantAPK := mode == config.ModeDebug || artifactKind == "apk"
 		if wantAPK {
-			if mode == config.ModeDebug {
-				return "apk", filepath.Join(root, "build", "app", "outputs", "flutter-apk", "app-debug.apk")
+			name := "app-debug.apk"
+			if mode != config.ModeDebug {
+				name = "app-release.apk"
+				if flavor != "" {
+					name = fmt.Sprintf("app-%s-release.apk", flavor)
+				}
+			} else if flavor != "" {
+				name = fmt.Sprintf("app-%s-debug.apk", flavor)
 			}
-			return "apk", filepath.Join(root, "build", "app", "outputs", "flutter-apk", "app-release.apk")
+			return "apk", filepath.Join(root, "build", "app", "outputs", "flutter-apk", name)
+		}
+		if flavor != "" {
+			// e.g. prodRelease/app-prod-release.aab
+			dir := flavor + "Release"
+			name := fmt.Sprintf("app-%s-release.aab", flavor)
+			return "aab", filepath.Join(root, "build", "app", "outputs", "bundle", dir, name)
 		}
 		return "aab", filepath.Join(root, "build", "app", "outputs", "bundle", "release", "app-release.aab")
 	case config.PlatformIOS:
@@ -192,20 +218,93 @@ func findIPA(dirOrFile string) (string, error) {
 	return found, nil
 }
 
-func resolveAndroidArtifact(path string) (string, error) {
-	if _, err := os.Stat(path); err == nil {
-		return path, nil
+func resolveAndroidArtifact(preferred, root, kind, flavor string) (string, error) {
+	if _, err := os.Stat(preferred); err == nil {
+		return preferred, nil
 	}
-	dir := filepath.Dir(path)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "", err
+	// Same directory as preferred.
+	dir := filepath.Dir(preferred)
+	if found := newestWithExt(dir, filepath.Ext(preferred)); found != "" {
+		return found, nil
 	}
-	ext := filepath.Ext(path)
-	for _, e := range entries {
-		if !e.IsDir() && strings.EqualFold(filepath.Ext(e.Name()), ext) {
-			return filepath.Join(dir, e.Name()), nil
+	// Broad search under build/app/outputs.
+	ext := ".aab"
+	if kind == "apk" {
+		ext = ".apk"
+	}
+	bases := []string{
+		filepath.Join(root, "build", "app", "outputs", "bundle"),
+		filepath.Join(root, "build", "app", "outputs", "flutter-apk"),
+		filepath.Join(root, "build", "app", "outputs", "apk"),
+	}
+	var candidates []string
+	for _, base := range bases {
+		_ = filepath.Walk(base, func(p string, fi os.FileInfo, err error) error {
+			if err != nil || fi == nil || fi.IsDir() {
+				return nil
+			}
+			if !strings.EqualFold(filepath.Ext(p), ext) {
+				return nil
+			}
+			if flavor != "" && !strings.Contains(strings.ToLower(p), strings.ToLower(flavor)) {
+				return nil
+			}
+			candidates = append(candidates, p)
+			return nil
+		})
+	}
+	if len(candidates) == 0 && flavor != "" {
+		// Retry without flavor filter.
+		for _, base := range bases {
+			_ = filepath.Walk(base, func(p string, fi os.FileInfo, err error) error {
+				if err != nil || fi == nil || fi.IsDir() {
+					return nil
+				}
+				if strings.EqualFold(filepath.Ext(p), ext) {
+					candidates = append(candidates, p)
+				}
+				return nil
+			})
 		}
 	}
-	return "", fmt.Errorf("artifact not found: %s", path)
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("artifact not found: %s", preferred)
+	}
+	newest := candidates[0]
+	var newestMod int64
+	for _, c := range candidates {
+		fi, err := os.Stat(c)
+		if err != nil {
+			continue
+		}
+		if fi.ModTime().UnixNano() >= newestMod {
+			newestMod = fi.ModTime().UnixNano()
+			newest = c
+		}
+	}
+	return newest, nil
+}
+
+func newestWithExt(dir, ext string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	var best string
+	var bestMod int64
+	for _, e := range entries {
+		if e.IsDir() || !strings.EqualFold(filepath.Ext(e.Name()), ext) {
+			continue
+		}
+		p := filepath.Join(dir, e.Name())
+		fi, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if fi.ModTime().UnixNano() >= bestMod {
+			bestMod = fi.ModTime().UnixNano()
+			best = p
+		}
+	}
+	return best
 }

@@ -13,6 +13,10 @@ type BuildOptions struct {
 	Mode        config.Mode
 	// ArtifactKind overrides default (android release → aab; apk if requested).
 	ArtifactKind string
+	// Flavor is a product flavor / Flutter --flavor.
+	Flavor string
+	// Scheme is an iOS scheme; Flutter adapters map this to --flavor when Flavor is empty.
+	Scheme string
 	// SkipPubGet passes --no-pub when lockfiles are unchanged.
 	SkipPubGet bool
 	// Clean runs flutter clean before build (off by default).
