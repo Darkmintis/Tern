@@ -79,6 +79,11 @@ tern validate --to play_store --artifact last
 tern ship last --to play_store --track internal
 ```
 
+## 7. Release name & notes
+
+By default Tern sets the Play release name from your app version and notes to `Bug fixes and improvements.`  
+Override per upload — see [release-name-and-notes.md](release-name-and-notes.md).
+
 ## Next
 
 - Env reference: [ENV.md](ENV.md)  
