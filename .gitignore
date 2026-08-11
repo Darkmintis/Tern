@@ -17,3 +17,6 @@ key.properties
 **/play-service-account*.json
 **/google-services.json
 AuthKey_*.p8
+
+# Tern local state (artifacts, fingerprints)
+.tern/
