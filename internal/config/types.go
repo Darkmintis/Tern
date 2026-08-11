@@ -64,9 +64,19 @@ type Step struct {
 	UploadTarget string
 	Track        string
 	// ShipFrom is "last" or an explicit artifact path.
-	ShipFrom  string
-	BumpLevel BumpLevel
-	TagPrefix string
+	ShipFrom string
+	// ReleaseNameStrategy: version|version_build|version_code|semver_plus|name_version|date|version_date|git_tag|git_sha|custom|none
+	ReleaseNameStrategy string
+	// ReleaseNameCustom is used when strategy is custom (or DSL quoted literal).
+	ReleaseNameCustom string
+	// NotesMode: default|none|text|file
+	NotesMode string
+	NotesText string
+	NotesFile string
+	// NotesLocale defaults to en-US for Play LocalizedText.
+	NotesLocale string
+	BumpLevel   BumpLevel
+	TagPrefix   string
 	// SyncAction is pull or push.
 	SyncAction string
 	NotifyVia  string
