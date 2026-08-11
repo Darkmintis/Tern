@@ -20,6 +20,7 @@ Tern focuses on the path from commit → store:
 
 - **Selective builds** — only platforms your lane needs; AAB by default (APK on request)
 - **Artifact-first** — successful builds land in `.tern/artifacts/`; `tern ship` retries upload without `flutter build`
+- **Release name & notes** — Play release title from app version; notes default to “Bug fixes and improvements.” (custom/file supported)
 - **Pre-release validation** — `tern validate` / upload gate checks version, artifact, credentials
 - **Parallel builds** — independent Android + iOS builds run concurrently
 - **CI caching** — `tern cache --github-actions` (also baked into `tern init` workflows)
