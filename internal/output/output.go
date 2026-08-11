@@ -23,6 +23,7 @@ type Event struct {
 	Step          string `json:"step,omitempty"`
 	Status        string `json:"status,omitempty"` // ok | error | dry_run | skipped
 	Message       string `json:"message,omitempty"`
+	Hint          string `json:"hint,omitempty"`
 	DurationMs    int64  `json:"duration_ms,omitempty"`
 	ErrorClass    string `json:"error_class,omitempty"`
 	ParallelGroup string `json:"parallel_group,omitempty"`
