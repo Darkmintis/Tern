@@ -1,6 +1,6 @@
 # Tern
 
-Open-source **optimized mobile release engine** for Android & iOS (Flutter first).
+**Mobile release automation CLI** for Android & iOS — an optimized **release engine** to build, sign, and ship apps to Google Play and the App Store / TestFlight from one simple config (Ternfile).
 
 **v0 supports Flutter end-to-end** (bump → sign → build → validate → Play / TestFlight).  
 Native, KMP, and React Native packages are scaffolds for later — see [`docs/adapters.md`](docs/adapters.md).
@@ -55,6 +55,8 @@ lane release:
 ```
 
 ## GitHub Actions
+
+CI-ready release automation for mobile apps:
 
 ```yaml
 - uses: darkmintis/Tern/action/setup-tern@main
