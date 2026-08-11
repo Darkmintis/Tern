@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/darkmintis/Tern/internal/diagnose"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	execx "github.com/darkmintis/Tern/internal/exec"
 )
@@ -66,7 +67,9 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		runner = &execx.RealRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 	}
 	if _, err := execx.LookPath("xcrun"); err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassUpload, "asc: xcrun not found (macOS required for IPA upload)", err)
+		return "", ternerrors.WrapHint(ternerrors.ClassUpload,
+			"xcrun not found (macOS required for IPA upload)",
+			"run iOS uploads on a Mac with Xcode Command Line Tools installed", err)
 	}
 
 	args := []string{
@@ -77,7 +80,15 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		"--apiIssuer", issuer,
 	}
 	if _, err := runner.Run(ctx, "", "xcrun", args...); err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassUpload, "asc: altool upload", err)
+		text := ternerrors.StderrOf(err)
+		if text == "" {
+			text = err.Error()
+		}
+		if classified := diagnose.Classify(ternerrors.ClassUpload, "asc: altool upload failed", text, err); classified != nil {
+			return "", classified
+		}
+		return "", ternerrors.WrapHint(ternerrors.ClassUpload, "App Store Connect upload failed",
+			"verify API key env vars and that the IPA uploads with `xcrun altool` manually", err)
 	}
 	dest := "app_store"
 	if req.TestFlight {
