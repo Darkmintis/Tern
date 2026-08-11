@@ -74,8 +74,11 @@ tern doctor                   # cheap preflight (SDK, JDK, licenses, secrets)
 tern release --dry-run        # no network / no mutating upload
 tern release --json           # machine-readable step events (includes hint)
 tern release --verbose        # full flutter/gradle/altool logs
+tern run release_prod --yes   # required for Play production / App Store in CI
 tern run release_ios --dry-run
 ```
+
+Production uploads (`track:production` / `app_store`) refuse without `--yes` in CI; interactive terminals prompt instead.
 
 ## Exit codes
 

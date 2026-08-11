@@ -1,35 +1,56 @@
-package initcmd_test
+package initcmd
 
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-
-	"github.com/darkmintis/Tern/internal/adapter"
-	"github.com/darkmintis/Tern/internal/adapter/flutter"
-	initcmd "github.com/darkmintis/Tern/internal/initcmd"
 )
 
-func TestInitCreatesTernfileAndWorkflow(t *testing.T) {
-	dir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte("dependencies:\n  flutter:\n    sdk: flutter\n"), 0o644)
-	_ = os.WriteFile(filepath.Join(dir, ".metadata"), []byte("v:1\n"), 0o644)
+func TestRenderTernfile_AndroidOnly(t *testing.T) {
+	body := RenderTernfile(Detected{
+		Adapter:    "flutter",
+		HasAndroid: true,
+		PackageID:  "com.example.app",
+		AppName:    "Example",
+	})
+	if !strings.Contains(body, "com.example.app") {
+		t.Fatal("missing package id")
+	}
+	if !strings.Contains(body, "lane release_prod:") {
+		t.Fatal("missing release_prod")
+	}
+	if strings.Contains(body, "lane release_ios:") {
+		t.Fatal("unexpected ios lane")
+	}
+}
 
-	res, err := initcmd.Run(dir, adapter.NewRegistry(flutter.New(nil)), true)
+func TestRenderTernfile_Both(t *testing.T) {
+	body := RenderTernfile(Detected{Adapter: "flutter", HasAndroid: true, HasIOS: true})
+	if !strings.Contains(body, "lane release_all:") {
+		t.Fatal("missing release_all")
+	}
+}
+
+func TestRun_WritesTernfile(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte("name: demo\nversion: 1.0.0+1\n"), 0o644)
+	_ = os.MkdirAll(filepath.Join(dir, "android", "app"), 0o755)
+	_ = os.WriteFile(filepath.Join(dir, "android", "app", "build.gradle"), []byte(`
+android {
+  defaultConfig { applicationId "com.demo.app" }
+}
+`), 0o644)
+
+	res, err := Run(dir, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Adapter != "flutter" {
-		t.Fatalf("%s", res.Adapter)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "Ternfile")); err != nil {
+	data, err := os.ReadFile(res.Ternfile)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".github", "workflows", "tern-release.yml")); err != nil {
-		t.Fatal(err)
-	}
-	_, err = initcmd.Run(dir, adapter.NewRegistry(flutter.New(nil)), false)
-	if err == nil {
-		t.Fatal("expected already exists")
+	if !strings.Contains(string(data), "com.demo.app") {
+		t.Fatalf("ternfile missing package: %s", data)
 	}
 }

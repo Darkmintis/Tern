@@ -34,3 +34,9 @@ lane release_ios:
 
 lane ship_android:
   ship android from last to play_store track:internal
+
+# Flavors / schemes (Flutter --flavor):
+#   build android release flavor:prod
+#   build ios release scheme:prod
+# Production Play (CI needs --yes):
+#   upload android to play_store track:production rollout:10

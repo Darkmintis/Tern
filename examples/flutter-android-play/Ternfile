@@ -14,13 +14,23 @@ lane release:
   upload android to play_store track:internal release_name:version_build
   tag git prefix:v
 
+# Production (requires --yes in CI): 10% staged rollout
+lane release_prod:
+  bump version patch
+  sign android with keystore env:ANDROID_KEYSTORE
+  build android release
+  upload android to play_store track:production rollout:10 release_name:version_build notes:default
+  tag git prefix:v
+
 # After a failed Play upload (same AAB, no rebuild):
 #   tern ship last --to play_store --track internal
 # or:
 lane ship_retry:
   ship android from last to play_store track:internal release_name:version_build notes:default
 
+# Flavored build (when your app defines productFlavors):
+#   build android release flavor:prod
 # Custom notes for a production push:
-#   upload android to play_store track:production notes:"Fixed checkout crash on Android 14."
+#   tern run release_prod --yes
 # Explicit APK instead of default AAB:
 #   build android release apk

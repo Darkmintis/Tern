@@ -84,6 +84,27 @@ tern ship last --to play_store --track internal
 By default Tern sets the Play release name from your app version and notes to `Bug fixes and improvements.`  
 Override per upload — see [release-name-and-notes.md](release-name-and-notes.md).
 
+## 8. Flavors / schemes
+
+```text
+build android release flavor:prod
+build ios release scheme:Runner   # Flutter maps scheme → --flavor when flavor unset
+```
+
+## 9. Production safety
+
+Uploads to Play `track:production` (or `prod`) and iOS `app_store` require confirmation:
+
+- Interactive: type `yes` when prompted  
+- CI / non-TTY: pass `--yes` (or `-y`)
+
+Optional staged Play rollout:
+
+```text
+upload android to play_store track:production rollout:10
+# or: tern ship last --to play_store --track production --rollout 10 --yes
+```
+
 ## Next
 
 - Env reference: [ENV.md](ENV.md)  
