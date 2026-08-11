@@ -19,6 +19,7 @@ import (
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	initcmd "github.com/darkmintis/Tern/internal/initcmd"
 	"github.com/darkmintis/Tern/internal/output"
+	"github.com/darkmintis/Tern/internal/releasemeta"
 	"github.com/darkmintis/Tern/internal/validate"
 	"github.com/darkmintis/Tern/internal/version"
 	"github.com/spf13/cobra"
@@ -230,7 +231,7 @@ func cmdBuild(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 }
 
 func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
-	var to, track, platform string
+	var to, track, platform, releaseName, notes, notesFile, notesLocale string
 	c := &cobra.Command{
 		Use:   "ship [artifact]",
 		Short: "Upload a saved artifact without rebuilding (default: last)",
@@ -239,6 +240,30 @@ func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 			from := "last"
 			if len(args) == 1 {
 				from = args[0]
+			}
+			spec := releasemeta.DefaultSpec()
+			if releaseName != "" {
+				strategy, custom, err := releasemeta.ParseNameToken(releaseName)
+				if err != nil {
+					return err
+				}
+				spec.NameStrategy = strategy
+				spec.NameCustom = custom
+			}
+			if notesFile != "" {
+				spec.NotesMode = releasemeta.NotesFile
+				spec.NotesFile = notesFile
+			} else if notes != "" {
+				mode, text, file, err := releasemeta.ParseNotesToken(notes)
+				if err != nil {
+					return err
+				}
+				spec.NotesMode = mode
+				spec.NotesText = text
+				spec.NotesFile = file
+			}
+			if notesLocale != "" {
+				spec.NotesLocale = notesLocale
 			}
 			eng := engine.New(reg)
 			return eng.Ship(context.Background(), engine.ShipOptions{
@@ -249,6 +274,7 @@ func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 				Track:       track,
 				DryRun:      g.dryRun,
 				Force:       g.force,
+				ReleaseSpec: spec,
 				Emitter:     emitter(g),
 			})
 		},
@@ -256,6 +282,10 @@ func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 	c.Flags().StringVar(&to, "to", "play_store", "play_store|testflight|app_store")
 	c.Flags().StringVar(&track, "track", "internal", "Play track (android)")
 	c.Flags().StringVar(&platform, "platform", "", "android|ios (inferred from --to if empty)")
+	c.Flags().StringVar(&releaseName, "release-name", "", "version|version_build|… or custom title")
+	c.Flags().StringVar(&notes, "notes", "", "default|none|text, or omit for Bug fixes and improvements.")
+	c.Flags().StringVar(&notesFile, "notes-file", "", "path to release notes file")
+	c.Flags().StringVar(&notesLocale, "notes-locale", "", "Play notes locale (default en-US)")
 	return c
 }
 
