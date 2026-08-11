@@ -17,6 +17,12 @@ type UploadRequest struct {
 	ArtifactPath string
 	Track        string
 	PackageName  string
+	// ReleaseName is the Play Console release name (optional).
+	ReleaseName string
+	// ReleaseNotes is localized "what's new" text (optional).
+	ReleaseNotes string
+	// ReleaseNotesLocale defaults to en-US when notes are set.
+	ReleaseNotesLocale string
 }
 
 // Client uploads to Play Console API.
@@ -102,12 +108,27 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		versionCode = apk.VersionCode
 	}
 
+	rel := &androidpublisher.TrackRelease{
+		Status:       "completed",
+		VersionCodes: []int64{versionCode},
+	}
+	if name := strings.TrimSpace(req.ReleaseName); name != "" {
+		rel.Name = name
+	}
+	if notes := strings.TrimSpace(req.ReleaseNotes); notes != "" {
+		locale := strings.TrimSpace(req.ReleaseNotesLocale)
+		if locale == "" {
+			locale = "en-US"
+		}
+		rel.ReleaseNotes = []*androidpublisher.LocalizedText{{
+			Language: locale,
+			Text:     notes,
+		}}
+	}
+
 	trackUpdate := &androidpublisher.Track{
-		Track: track,
-		Releases: []*androidpublisher.TrackRelease{{
-			Status:       "completed",
-			VersionCodes: []int64{versionCode},
-		}},
+		Track:    track,
+		Releases: []*androidpublisher.TrackRelease{rel},
 	}
 	if _, err := svc.Edits.Tracks.Update(req.PackageName, edit.Id, track, trackUpdate).Context(ctx).Do(); err != nil {
 		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: update track", err)
@@ -116,6 +137,13 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		return "", ternerrors.Wrap(ternerrors.ClassUpload, "play: commit edit", err)
 	}
 
-	return fmt.Sprintf("uploaded %s to Play track=%s package=%s versionCode=%d",
-		filepath.Base(req.ArtifactPath), track, req.PackageName, versionCode), nil
+	msg := fmt.Sprintf("uploaded %s to Play track=%s package=%s versionCode=%d",
+		filepath.Base(req.ArtifactPath), track, req.PackageName, versionCode)
+	if rel.Name != "" {
+		msg += " name=" + rel.Name
+	}
+	if len(rel.ReleaseNotes) > 0 {
+		msg += " notes=set"
+	}
+	return msg, nil
 }
