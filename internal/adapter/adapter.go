@@ -11,7 +11,13 @@ type BuildOptions struct {
 	ProjectRoot string
 	Platform    config.Platform
 	Mode        config.Mode
-	DryRun      bool
+	// ArtifactKind overrides default (android release → aab; apk if requested).
+	ArtifactKind string
+	// SkipPubGet passes --no-pub when lockfiles are unchanged.
+	SkipPubGet bool
+	// Clean runs flutter clean before build (off by default).
+	Clean  bool
+	DryRun bool
 }
 
 // BuildArtifact is the output of a successful build.

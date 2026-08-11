@@ -62,8 +62,8 @@ func findSub(s, sub string) bool {
 }
 
 func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter.BuildArtifact, error) {
+	kind, path := expectedArtifact(opts.ProjectRoot, opts.Platform, opts.Mode, opts.ArtifactKind)
 	if opts.DryRun {
-		kind, path := expectedArtifact(opts.ProjectRoot, opts.Platform, opts.Mode)
 		return adapter.BuildArtifact{Path: path, Platform: opts.Platform, Kind: kind}, nil
 	}
 	look := a.LookPath
@@ -74,11 +74,22 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		return adapter.BuildArtifact{}, ternerrors.Wrap(ternerrors.ClassBuild, "flutter not found on PATH", err)
 	}
 
+	if opts.Clean {
+		if _, err := a.Runner.Run(ctx, opts.ProjectRoot, "flutter", "clean"); err != nil {
+			return adapter.BuildArtifact{}, ternerrors.WrapHint(ternerrors.ClassBuild,
+				"flutter clean failed", "fix the clean error or omit --clean", err)
+		}
+	}
+
 	var args []string
 	switch opts.Platform {
 	case config.PlatformAndroid:
-		if opts.Mode == config.ModeDebug {
-			args = []string{"build", "apk", "--debug"}
+		if opts.Mode == config.ModeDebug || kind == "apk" {
+			if opts.Mode == config.ModeDebug {
+				args = []string{"build", "apk", "--debug"}
+			} else {
+				args = []string{"build", "apk", "--release"}
+			}
 		} else {
 			args = []string{"build", "appbundle", "--release"}
 		}
@@ -91,6 +102,9 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 	default:
 		return adapter.BuildArtifact{}, ternerrors.New(ternerrors.ClassBuild, "unsupported platform")
 	}
+	if opts.SkipPubGet {
+		args = append(args, "--no-pub")
+	}
 
 	if _, err := a.Runner.Run(ctx, opts.ProjectRoot, "flutter", args...); err != nil {
 		hint := "run `flutter doctor` and ensure the project builds with `flutter build` manually first"
@@ -101,7 +115,7 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 			fmt.Sprintf("flutter build %s", opts.Platform), hint, err)
 	}
 
-	kind, outPath := expectedArtifact(opts.ProjectRoot, opts.Platform, opts.Mode)
+	outPath := path
 	if opts.Platform == config.PlatformIOS && opts.Mode == config.ModeRelease {
 		ipa, err := findIPA(outPath)
 		if err != nil {
@@ -124,11 +138,15 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 	return adapter.BuildArtifact{Path: outPath, Platform: opts.Platform, Kind: kind}, nil
 }
 
-func expectedArtifact(root string, platform config.Platform, mode config.Mode) (kind, path string) {
+func expectedArtifact(root string, platform config.Platform, mode config.Mode, artifactKind string) (kind, path string) {
 	switch platform {
 	case config.PlatformAndroid:
-		if mode == config.ModeDebug {
-			return "apk", filepath.Join(root, "build", "app", "outputs", "flutter-apk", "app-debug.apk")
+		wantAPK := mode == config.ModeDebug || artifactKind == "apk"
+		if wantAPK {
+			if mode == config.ModeDebug {
+				return "apk", filepath.Join(root, "build", "app", "outputs", "flutter-apk", "app-debug.apk")
+			}
+			return "apk", filepath.Join(root, "build", "app", "outputs", "flutter-apk", "app-release.apk")
 		}
 		return "aab", filepath.Join(root, "build", "app", "outputs", "bundle", "release", "app-release.aab")
 	case config.PlatformIOS:
