@@ -121,6 +121,31 @@ lane release:
 	}
 }
 
+func TestParseDSL_ReleaseNameAndNotes(t *testing.T) {
+	src := `
+lane release:
+  upload android to play_store track:beta release_name:version_build notes:"Bug fixes and performance improvements."
+  ship android from last to play_store notes:file:NOTES.md release_name:"Hotfix"
+  upload android to play_store notes:none release_name:none
+`
+	cfg, err := config.ParseDSL(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s0 := cfg.Lanes["release"].Steps[0]
+	if s0.ReleaseNameStrategy != "version_build" || s0.NotesMode != "text" || s0.NotesText == "" {
+		t.Fatalf("%+v", s0)
+	}
+	s1 := cfg.Lanes["release"].Steps[1]
+	if s1.ReleaseNameStrategy != "custom" || s1.ReleaseNameCustom != "Hotfix" || s1.NotesFile != "NOTES.md" {
+		t.Fatalf("%+v", s1)
+	}
+	s2 := cfg.Lanes["release"].Steps[2]
+	if s2.ReleaseNameStrategy != "none" || s2.NotesMode != "none" {
+		t.Fatalf("%+v", s2)
+	}
+}
+
 func TestParseDSL_TableDriven(t *testing.T) {
 	cases := []struct {
 		name    string
