@@ -47,6 +47,9 @@ lane release:
   upload android to play_store track:internal
 `
 	_ = os.WriteFile(filepath.Join(dir, "Ternfile"), []byte(tern), 0o644)
+	sdk := filepath.Join(dir, "android-sdk")
+	_ = os.MkdirAll(sdk, 0o755)
+	t.Setenv("ANDROID_HOME", sdk)
 	t.Setenv("ANDROID_KEYSTORE", ks)
 	t.Setenv("ANDROID_KEYSTORE_PASSWORD", "store-pass-strong")
 	t.Setenv("ANDROID_KEY_ALIAS", "upload")
@@ -84,6 +87,9 @@ android { applicationId "com.example.app"
 }
 `), 0o644)
 	_ = os.WriteFile(filepath.Join(dir, "Ternfile"), []byte("lane r:\n  sync_certs pull repo:env:CERT_REPO\n"), 0o644)
+	sdk := filepath.Join(dir, "android-sdk")
+	_ = os.MkdirAll(sdk, 0o755)
+	t.Setenv("ANDROID_HOME", sdk)
 	t.Setenv("CERT_REPO", "git@example.com:org/certs.git")
 	cfg, _ := config.Load(dir)
 	_, err := doctor.Run(doctor.Options{
