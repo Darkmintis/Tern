@@ -56,6 +56,10 @@ type Step struct {
 	Mode     Mode
 	// ArtifactKind is aab|apk for android builds (default aab for release).
 	ArtifactKind ArtifactKind
+	// Flavor is a Flutter/Android product flavor (build … flavor:prod).
+	Flavor string
+	// Scheme is an iOS Xcode scheme; for Flutter this maps to --flavor when Flavor is empty.
+	Scheme string
 	// SignWith is "keystore" or "cert".
 	SignWith string
 	// EnvRef is the environment variable name (without env: prefix).
@@ -63,6 +67,8 @@ type Step struct {
 	// UploadTarget is play_store, testflight, or app_store.
 	UploadTarget string
 	Track        string
+	// Rollout is a staged Play rollout fraction in (0,1], 0 means full/completed.
+	Rollout float64
 	// ShipFrom is "last" or an explicit artifact path.
 	ShipFrom string
 	// ReleaseNameStrategy: version|version_build|version_code|semver_plus|name_version|date|version_date|git_tag|git_sha|custom|none

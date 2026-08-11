@@ -130,7 +130,7 @@ func parseStep(line string) (Step, error) {
 }
 
 func parseBuild(parts []string) (Step, error) {
-	// build android release [aab|apk]
+	// build android release [aab|apk] [flavor:name] [scheme:name]
 	if len(parts) < 3 {
 		return Step{}, ternerrors.New(ternerrors.ClassConfig, "build requires platform and mode")
 	}
@@ -150,6 +150,20 @@ func parseBuild(parts []string) (Step, error) {
 		case "apk":
 			s.ArtifactKind = ArtifactAPK
 		default:
+			if v, ok := kvPrefix(extra, "flavor"); ok {
+				if v == "" {
+					return Step{}, ternerrors.New(ternerrors.ClassConfig, "flavor: requires a name")
+				}
+				s.Flavor = v
+				continue
+			}
+			if v, ok := kvPrefix(extra, "scheme"); ok {
+				if v == "" {
+					return Step{}, ternerrors.New(ternerrors.ClassConfig, "scheme: requires a name")
+				}
+				s.Scheme = v
+				continue
+			}
 			return Step{}, ternerrors.New(ternerrors.ClassConfig, fmt.Sprintf("unknown build option %q", extra))
 		}
 	}
@@ -358,17 +372,20 @@ type yamlBuild struct {
 	Platform string `yaml:"platform"`
 	Mode     string `yaml:"mode"`
 	Kind     string `yaml:"kind"` // aab | apk
+	Flavor   string `yaml:"flavor"`
+	Scheme   string `yaml:"scheme"`
 }
 
 type yamlShip struct {
-	Platform    string `yaml:"platform"`
-	From        string `yaml:"from"`
-	To          string `yaml:"to"`
-	Track       string `yaml:"track"`
-	ReleaseName string `yaml:"release_name"`
-	Notes       string `yaml:"notes"`
-	NotesFile   string `yaml:"notes_file"`
-	NotesLocale string `yaml:"notes_locale"`
+	Platform    string  `yaml:"platform"`
+	From        string  `yaml:"from"`
+	To          string  `yaml:"to"`
+	Track       string  `yaml:"track"`
+	Rollout     float64 `yaml:"rollout"` // fraction 0–1 or percent >1 (normalized in apply)
+	ReleaseName string  `yaml:"release_name"`
+	Notes       string  `yaml:"notes"`
+	NotesFile   string  `yaml:"notes_file"`
+	NotesLocale string  `yaml:"notes_locale"`
 }
 
 type yamlSign struct {
@@ -378,13 +395,14 @@ type yamlSign struct {
 }
 
 type yamlUpload struct {
-	Platform    string `yaml:"platform"`
-	To          string `yaml:"to"`
-	Track       string `yaml:"track"`
-	ReleaseName string `yaml:"release_name"`
-	Notes       string `yaml:"notes"`
-	NotesFile   string `yaml:"notes_file"`
-	NotesLocale string `yaml:"notes_locale"`
+	Platform    string  `yaml:"platform"`
+	To          string  `yaml:"to"`
+	Track       string  `yaml:"track"`
+	Rollout     float64 `yaml:"rollout"`
+	ReleaseName string  `yaml:"release_name"`
+	Notes       string  `yaml:"notes"`
+	NotesFile   string  `yaml:"notes_file"`
+	NotesLocale string  `yaml:"notes_locale"`
 }
 
 type yamlBump struct {
@@ -443,7 +461,10 @@ func yamlToStep(ys yamlStep) (Step, error) {
 		if kind == "" && p == PlatformAndroid && m == ModeRelease {
 			kind = ArtifactAAB
 		}
-		s = Step{Kind: StepBuild, Platform: p, Mode: m, ArtifactKind: kind, Raw: "build"}
+		s = Step{
+			Kind: StepBuild, Platform: p, Mode: m, ArtifactKind: kind,
+			Flavor: ys.Build.Flavor, Scheme: ys.Build.Scheme, Raw: "build",
+		}
 	}
 	if ys.Sign != nil {
 		n++
@@ -460,6 +481,9 @@ func yamlToStep(ys yamlStep) (Step, error) {
 			return Step{}, err
 		}
 		s = Step{Kind: StepUpload, Platform: p, UploadTarget: ys.Upload.To, Track: ys.Upload.Track, Raw: "upload"}
+		if err := applyYAMLRollout(&s, ys.Upload.Rollout); err != nil {
+			return Step{}, err
+		}
 		if err := applyYAMLReleaseMeta(&s, ys.Upload.ReleaseName, ys.Upload.Notes, ys.Upload.NotesFile, ys.Upload.NotesLocale); err != nil {
 			return Step{}, err
 		}
@@ -475,6 +499,9 @@ func yamlToStep(ys yamlStep) (Step, error) {
 			from = "last"
 		}
 		s = Step{Kind: StepShip, Platform: p, ShipFrom: from, UploadTarget: ys.Ship.To, Track: ys.Ship.Track, Raw: "ship"}
+		if err := applyYAMLRollout(&s, ys.Ship.Rollout); err != nil {
+			return Step{}, err
+		}
 		if err := applyYAMLReleaseMeta(&s, ys.Ship.ReleaseName, ys.Ship.Notes, ys.Ship.NotesFile, ys.Ship.NotesLocale); err != nil {
 			return Step{}, err
 		}
@@ -506,6 +533,20 @@ func yamlToStep(ys yamlStep) (Step, error) {
 		return Step{}, ternerrors.New(ternerrors.ClassConfig, "each YAML step must have exactly one action key")
 	}
 	return s, nil
+}
+
+func applyYAMLRollout(s *Step, rollout float64) error {
+	if rollout == 0 {
+		return nil
+	}
+	// YAML may use 10 for 10% or 0.1 for fraction.
+	v := fmt.Sprintf("%g", rollout)
+	frac, err := parseRolloutValue(v)
+	if err != nil {
+		return err
+	}
+	s.Rollout = frac
+	return nil
 }
 
 func applyYAMLReleaseMeta(s *Step, releaseName, notes, notesFile, notesLocale string) error {

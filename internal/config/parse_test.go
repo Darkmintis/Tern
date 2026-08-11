@@ -146,6 +146,33 @@ lane release:
 	}
 }
 
+func TestParseDSL_FlavorSchemeRollout(t *testing.T) {
+	src := `
+lane release:
+  build android release flavor:prod
+  build ios release scheme:Runner
+  upload android to play_store track:production rollout:10
+  ship android from last to play_store track:beta rollout:0.25
+`
+	cfg, err := config.ParseDSL(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := cfg.Lanes["release"].Steps
+	if steps[0].Flavor != "prod" {
+		t.Fatalf("flavor: %+v", steps[0])
+	}
+	if steps[1].Scheme != "Runner" {
+		t.Fatalf("scheme: %+v", steps[1])
+	}
+	if steps[2].Rollout != 0.1 {
+		t.Fatalf("rollout 10%%: %+v", steps[2])
+	}
+	if steps[3].Rollout != 0.25 {
+		t.Fatalf("rollout 0.25: %+v", steps[3])
+	}
+}
+
 func TestParseDSL_TableDriven(t *testing.T) {
 	cases := []struct {
 		name    string

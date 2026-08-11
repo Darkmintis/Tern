@@ -75,6 +75,14 @@ func applyReleaseExtras(s *Step, extras []string) error {
 			s.Track = v
 			continue
 		}
+		if v, ok := kvPrefix(extra, "rollout"); ok {
+			frac, err := parseRolloutValue(v)
+			if err != nil {
+				return err
+			}
+			s.Rollout = frac
+			continue
+		}
 		if v, ok := kvPrefix(extra, "release_name"); ok {
 			strategy, custom, err := parseReleaseNameValue(v)
 			if err != nil {
@@ -101,6 +109,41 @@ func applyReleaseExtras(s *Step, extras []string) error {
 		return ternerrors.New(ternerrors.ClassConfig, fmt.Sprintf("unknown option %q", extra))
 	}
 	return nil
+}
+
+// parseRolloutValue accepts 10 / 10% (percent) or 0.1 (fraction). 100% / 1 → full release (0).
+func parseRolloutValue(v string) (float64, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0, ternerrors.New(ternerrors.ClassConfig, "rollout: requires a value (e.g. 10 or 0.1)")
+	}
+	pct := false
+	if strings.HasSuffix(v, "%") {
+		pct = true
+		v = strings.TrimSuffix(v, "%")
+	}
+	var n float64
+	if _, err := fmt.Sscanf(v, "%f", &n); err != nil {
+		return 0, ternerrors.New(ternerrors.ClassConfig, fmt.Sprintf("invalid rollout %q", v))
+	}
+	if pct || n > 1 {
+		n = n / 100
+	}
+	if n <= 0 || n > 1 {
+		return 0, ternerrors.New(ternerrors.ClassConfig, "rollout must be in (0, 100%] or (0, 1]")
+	}
+	if n >= 1 {
+		return 0, nil // full rollout → completed status
+	}
+	return n, nil
+}
+
+// NormalizeRollout converts CLI/YAML numeric rollout (10 or 0.1) to fraction in (0,1), or 0 for full.
+func NormalizeRollout(n float64) (float64, error) {
+	if n == 0 {
+		return 0, nil
+	}
+	return parseRolloutValue(fmt.Sprintf("%g", n))
 }
 
 func parseReleaseNameValue(v string) (strategy, custom string, err error) {
