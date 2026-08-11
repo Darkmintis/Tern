@@ -16,7 +16,7 @@ func TestResolveNameStrategies(t *testing.T) {
 
 	cases := []struct {
 		strategy releasemeta.NameStrategy
-		want  string
+		want     string
 	}{
 		{releasemeta.NameVersion, "1.2.3"},
 		{releasemeta.NameVersionBuild, "1.2.3 (9)"},
