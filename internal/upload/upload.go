@@ -16,9 +16,9 @@ import (
 
 // Options for store upload.
 type Options struct {
-	Platform    config.Platform
-	Target      string // play_store | testflight | app_store
-	Track       string
+	Platform config.Platform
+	Target   string // play_store | testflight | app_store
+	Track    string
 	// Rollout is Play staged rollout fraction in (0,1); 0 means full/completed.
 	Rollout     float64
 	Artifact    string
