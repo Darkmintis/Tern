@@ -71,7 +71,7 @@ func ConfirmProduction(opts ConfirmOpts) error {
 	ans = strings.ToLower(strings.TrimSpace(ans))
 	if ans != "yes" && ans != "y" {
 		return ternerrors.NewHint(ternerrors.ClassUpload,
-			"production upload cancelled",
+			"production upload canceled",
 			"re-run and type yes, or pass --yes in CI")
 	}
 	return nil
