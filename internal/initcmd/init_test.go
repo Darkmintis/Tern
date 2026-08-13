@@ -53,4 +53,15 @@ android {
 	if !strings.Contains(string(data), "com.demo.app") {
 		t.Fatalf("ternfile missing package: %s", data)
 	}
+	envEx := filepath.Join(dir, ".env.example")
+	if _, err := os.Stat(envEx); err != nil {
+		t.Fatal("expected .env.example")
+	}
+	gi, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if !strings.Contains(string(gi), ".env") || !strings.Contains(string(gi), ".tern/") {
+		t.Fatalf("gitignore missing tern entries: %s", gi)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "secrets")); err != nil {
+		t.Fatal("expected secrets/ dir")
+	}
 }

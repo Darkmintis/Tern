@@ -61,13 +61,45 @@ jobs:
       # Production: tern run release_prod --yes
 `
 
+const envExampleAndroid = `# Copy to .env and fill in. Do NOT commit .env or secrets/.
+# Guide: https://github.com/darkmintis/Tern/blob/main/docs/setup.md
+# Credentials: https://github.com/darkmintis/Tern/blob/main/docs/play-setup.md
+
+ANDROID_KEYSTORE=secrets/upload.jks
+ANDROID_KEYSTORE_PASSWORD=replace-me
+ANDROID_KEY_ALIAS=upload
+ANDROID_KEY_PASSWORD=replace-me
+
+# Play Console service-account JSON
+GOOGLE_APPLICATION_CREDENTIALS=secrets/play.json
+
+# Optional if Gradle applicationId cannot be detected:
+# ANDROID_PACKAGE_NAME=com.example.myapp
+`
+
+const envExampleIOS = `
+# iOS / App Store Connect (macOS)
+# IOS_CERT=/path/to/signing-material
+# APP_STORE_CONNECT_API_KEY_ID=
+# APP_STORE_CONNECT_API_ISSUER_ID=
+# APP_STORE_CONNECT_API_KEY_PATH=/path/to/AuthKey_XXX.p8
+`
+
+const gitignoreExtras = `
+# Tern — local secrets and release state
+.env
+.tern/
+secrets/
+`
+
 // Result of init.
 type Result struct {
-	Adapter  string
-	Ternfile string
-	Workflow string
-	Created  []string
-	Message  string
+	Adapter    string
+	Ternfile   string
+	Workflow   string
+	EnvExample string
+	Created    []string
+	Message    string
 }
 
 // Detected project facts used to tailor Ternfile.
@@ -121,6 +153,8 @@ func RenderTernfile(d Detected) string {
 	if d.BundleID != "" {
 		fmt.Fprintf(&b, "# iOS bundle id: %s\n", d.BundleID)
 	}
+	b.WriteString("# Layout: keep this file at the Flutter app root (not under android/).\n")
+	b.WriteString("# Setup: docs/setup.md · credentials: docs/play-setup.md\n")
 	b.WriteString("# Sign before build so android/key.properties exists for release AABs.\n")
 	b.WriteString("# Flavors: build android release flavor:prod\n")
 	b.WriteString("# Production uploads require --yes (or interactive confirm).\n")
@@ -173,6 +207,49 @@ func RenderTernfile(d Detected) string {
 	return b.String()
 }
 
+// RenderEnvExample builds .env.example for the detected platforms.
+func RenderEnvExample(d Detected) string {
+	hasA := d.HasAndroid || (!d.HasAndroid && !d.HasIOS)
+	var b strings.Builder
+	if hasA {
+		b.WriteString(envExampleAndroid)
+		if d.PackageID != "" {
+			fmt.Fprintf(&b, "\n# Detected package id (uncomment to force):\n# ANDROID_PACKAGE_NAME=%s\n", d.PackageID)
+		}
+	}
+	if d.HasIOS {
+		b.WriteString(envExampleIOS)
+	}
+	return b.String()
+}
+
+func ensureGitignore(projectRoot string) (string, error) {
+	path := filepath.Join(projectRoot, ".gitignore")
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	body := string(existing)
+	need := []string{".env", ".tern/", "secrets/"}
+	var missing []string
+	for _, n := range need {
+		if !strings.Contains(body, n) {
+			missing = append(missing, n)
+		}
+	}
+	if len(missing) == 0 {
+		return "", nil
+	}
+	add := gitignoreExtras
+	if !strings.HasSuffix(body, "\n") && body != "" {
+		add = "\n" + add
+	}
+	if err := os.WriteFile(path, []byte(body+add), 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 // Run scaffolds Ternfile and optional GitHub Actions workflow.
 func Run(projectRoot string, reg *adapter.Registry, writeWorkflow bool) (Result, error) {
 	if projectRoot == "" {
@@ -191,6 +268,22 @@ func Run(projectRoot string, reg *adapter.Registry, writeWorkflow bool) (Result,
 	}
 	res.Ternfile = ternPath
 	res.Created = append(res.Created, ternPath)
+
+	envPath := filepath.Join(projectRoot, ".env.example")
+	if _, err := os.Stat(envPath); err != nil {
+		if err := os.WriteFile(envPath, []byte(RenderEnvExample(d)), 0o644); err != nil {
+			return res, ternerrors.Wrap(ternerrors.ClassConfig, "writing .env.example", err)
+		}
+		res.EnvExample = envPath
+		res.Created = append(res.Created, envPath)
+	}
+
+	_ = os.MkdirAll(filepath.Join(projectRoot, "secrets"), 0o755)
+	if gi, err := ensureGitignore(projectRoot); err != nil {
+		return res, ternerrors.Wrap(ternerrors.ClassConfig, "updating .gitignore", err)
+	} else if gi != "" {
+		res.Created = append(res.Created, gi+" (tern entries)")
+	}
 
 	if writeWorkflow {
 		wfDir := filepath.Join(projectRoot, ".github", "workflows")
@@ -218,6 +311,8 @@ func Run(projectRoot string, reg *adapter.Registry, writeWorkflow bool) (Result,
 	} else {
 		parts = append(parts, "android-focused lanes")
 	}
+	parts = append(parts, "next: cp .env.example .env → docs/setup.md → tern doctor")
+	parts = append(parts, "CI: .github/workflows/tern-release.yml")
 	res.Message = strings.Join(parts, " · ")
 	return res, nil
 }
