@@ -6,6 +6,7 @@ import (
 	"github.com/darkmintis/Tern/internal/adapter/kmp"
 	"github.com/darkmintis/Tern/internal/adapter/native"
 	"github.com/darkmintis/Tern/internal/adapter/reactnative"
+	"github.com/darkmintis/Tern/internal/dotenv"
 	execx "github.com/darkmintis/Tern/internal/exec"
 	"github.com/darkmintis/Tern/internal/output"
 	"github.com/spf13/cobra"
@@ -32,6 +33,7 @@ func newRoot() *cobra.Command {
 		SilenceUsage:  true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			execx.SetVerbose(g.verbose)
+			_ = dotenv.LoadProject(g.dir)
 		},
 	}
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "emit machine-readable JSON events")
