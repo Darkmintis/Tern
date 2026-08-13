@@ -125,7 +125,10 @@ func Run(opts Options) ([]Check, error) {
 				seen[step.EnvRef] = true
 				err := secrets.CheckEnvStrong(step.EnvRef)
 				if err != nil {
-					checks = append(checks, Check{Name: "env:" + step.EnvRef, OK: false, Message: err.Error(), Hint: "export a strong value or pass it from CI secrets"})
+					checks = append(checks, Check{
+						Name: "env:" + step.EnvRef, OK: false, Message: err.Error(),
+						Hint: "copy .env.example → .env and set this value — see docs/setup.md",
+					})
 					continue
 				}
 				val := os.Getenv(step.EnvRef)
@@ -148,7 +151,10 @@ func Run(opts Options) ([]Check, error) {
 		if needsAndroidSign {
 			for _, name := range []string{signing.EnvKeystorePassword, signing.EnvKeyAlias, signing.EnvKeyPassword} {
 				if err := secrets.CheckEnvStrong(name); err != nil {
-					checks = append(checks, Check{Name: "env:" + name, OK: false, Message: err.Error()})
+					checks = append(checks, Check{
+						Name: "env:" + name, OK: false, Message: err.Error(),
+						Hint: "set in .env from .env.example — docs/play-setup.md (keystore section)",
+					})
 				} else {
 					checks = append(checks, Check{Name: "env:" + name, OK: true, Message: "present"})
 				}
@@ -160,10 +166,13 @@ func Run(opts Options) ([]Check, error) {
 				checks = append(checks, Check{
 					Name: "env:GOOGLE_APPLICATION_CREDENTIALS", OK: false,
 					Message: "missing Play service-account JSON path",
-					Hint:    "create a Play Console service account JSON and export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json",
+					Hint:    "follow docs/play-setup.md → set GOOGLE_APPLICATION_CREDENTIALS in .env",
 				})
 			} else if err := secrets.FileReadable(creds); err != nil {
-				checks = append(checks, Check{Name: "env:GOOGLE_APPLICATION_CREDENTIALS", OK: false, Message: err.Error()})
+				checks = append(checks, Check{
+					Name: "env:GOOGLE_APPLICATION_CREDENTIALS", OK: false, Message: err.Error(),
+					Hint: "path must exist; put play.json under secrets/ — docs/play-setup.md",
+				})
 			} else {
 				checks = append(checks, Check{Name: "env:GOOGLE_APPLICATION_CREDENTIALS", OK: true, Message: "present, file readable"})
 			}
