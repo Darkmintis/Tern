@@ -2,6 +2,10 @@
 
 Secrets are **never** written into `Ternfile`. Reference them with `env:NAME` only.
 
+**Setup guides:** [setup.md](setup.md) · [play-setup.md](play-setup.md)
+
+Local tip: keep values in `.env` at the Flutter app root (`tern init` writes `.env.example`). Tern loads `.env` automatically; existing shell/CI variables are not overwritten.
+
 ## Android / Play
 
 | Variable | Required for | Description |

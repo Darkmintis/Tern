@@ -20,8 +20,8 @@ Read each failing check and its `hint:`. Common fixes:
 | `android_licenses` | Run `flutter doctor --android-licenses` and accept all |
 | `android_cmdline_tools` | Install Android SDK Command-line Tools |
 | `android_signing_gradle` | Wire `key.properties` into `android/app/build.gradle` (Flutter default template) |
-| `env:ANDROID_KEYSTORE` | Export path to a real keystore file |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Download Play service-account JSON and export the path |
+| `env:ANDROID_KEYSTORE*` | Copy `.env.example` → `.env` — see [setup.md](setup.md) / [play-setup.md](play-setup.md) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Follow [play-setup.md](play-setup.md); put JSON under `secrets/` |
 | `sync_certs` | Remove that step from Ternfile (not ready in v0) |
 | `adapter` | Use a Flutter project (`pubspec.yaml` + Flutter SDK) |
 

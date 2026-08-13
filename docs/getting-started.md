@@ -2,6 +2,8 @@
 
 Tern v0 automates **Flutter** Android & iOS release lanes: bump → sign → build → upload.
 
+**New here?** Use the short path: **[setup.md](setup.md)** (layout + 5 steps) and **[play-setup.md](play-setup.md)** (credentials).
+
 ## 1. Install
 
 ```bash
@@ -19,16 +21,32 @@ Requires **Go 1.25.12+** to build from source.
 ```bash
 cd /path/to/your_flutter_app
 tern init
+```
+
+Creates at the **app root** (not under `android/`):
+
+- `Ternfile`
+- `.env.example`
+- `secrets/` directory + `.gitignore` entries for `.env`, `.tern/`, `secrets/`
+- `.github/workflows/tern-release.yml` (standard GitHub Actions path)
+
+**First Play upload:** create the app once in Play Console (browser). You usually do **not** need a manual AAB upload first — Tern can upload the first internal build. Details: [setup.md](setup.md).
+
+Then:
+
+```bash
+cp .env.example .env
+# fill secrets — see play-setup.md
 tern doctor
 ```
 
-This creates a `Ternfile` and optionally `.github/workflows/tern-release.yml`.
+Tern auto-loads `.env` from the project root (shell/CI env still wins if already set).
 
 ## 3. Android → Play Store
 
 ### Env vars
 
-See [ENV.md](ENV.md).
+See [ENV.md](ENV.md) and [play-setup.md](play-setup.md).
 
 ### One-time project setup
 
@@ -107,6 +125,8 @@ upload android to play_store track:production rollout:10
 
 ## Next
 
+- Setup (simple): [setup.md](setup.md)  
+- Play credentials: [play-setup.md](play-setup.md)  
 - Env reference: [ENV.md](ENV.md)  
 - Troubleshooting: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)  
 - Example configs: [../examples/](../examples/)  

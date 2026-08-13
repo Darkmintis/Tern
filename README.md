@@ -41,9 +41,11 @@ Build-from-source requires **Go 1.25.12+**.
 
 ## Quick start
 
+**Simple setup:** [`docs/setup.md`](docs/setup.md)  
+Play credentials: [`docs/play-setup.md`](docs/play-setup.md)  
 Full walkthrough: [`docs/getting-started.md`](docs/getting-started.md)  
 Env vars: [`docs/ENV.md`](docs/ENV.md)  
-Troubleshooting (licenses, SDK, signing, Play errors): [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)  
+Troubleshooting: [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)  
 **Copy-paste configs:** [`examples/`](examples/)
 
 ```
