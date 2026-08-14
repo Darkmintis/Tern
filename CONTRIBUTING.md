@@ -26,7 +26,7 @@ fix: reject unknown Ternfile step kinds
 - Wrap errors with `%w` and use `internal/errors` classes
 - Table-driven tests for parsers and validators; mock `exec` at the Runner boundary
 
-See [`docs/adr/`](docs/adr/) for architecture decisions and [`docs/getting-started.md`](docs/getting-started.md) for user docs.
+See [`docs/adr/`](docs/adr/) for architecture decisions, [`AGENTS.md`](AGENTS.md) for maintainer/AI rules, and [`docs/getting-started.md`](docs/getting-started.md) for user docs.
 
 ## Pull requests
 
