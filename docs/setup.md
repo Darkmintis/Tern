@@ -7,6 +7,7 @@ Simple path for developers. Tern runs from your **Flutter app root** — not ins
 ```text
 your_flutter_app/                    ← run tern here
 ├── Ternfile                         ← lanes (commit)
+├── AGENTS.md                        ← Tern section for AI assistants (commit)
 ├── .env.example                     ← from tern init (commit)
 ├── .env                             ← secrets (do NOT commit)
 ├── secrets/                         ← keystore + Play JSON (do NOT commit)
@@ -62,6 +63,7 @@ Creates:
 - `Ternfile` — release lanes (default upload → Play **internal**)
 - `.env.example` — which variables you need
 - `secrets/` + `.gitignore` entries for `.env`, `.tern/`, `secrets/`
+- `AGENTS.md` — Tern section for AI assistants (appends if file already exists)
 - `.github/workflows/tern-release.yml` — optional CI (under `.github/workflows/`)
 
 ### 3. Add credentials (one-time)

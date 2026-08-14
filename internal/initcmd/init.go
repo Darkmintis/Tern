@@ -98,6 +98,7 @@ type Result struct {
 	Ternfile   string
 	Workflow   string
 	EnvExample string
+	Agents     string
 	Created    []string
 	Message    string
 }
@@ -285,6 +286,13 @@ func Run(projectRoot string, reg *adapter.Registry, writeWorkflow bool) (Result,
 		res.Created = append(res.Created, gi+" (tern entries)")
 	}
 
+	if agentsPath, err := EnsureProjectAgents(projectRoot, d); err != nil {
+		return res, ternerrors.Wrap(ternerrors.ClassConfig, "writing AGENTS.md", err)
+	} else if agentsPath != "" {
+		res.Agents = agentsPath
+		res.Created = append(res.Created, agentsPath)
+	}
+
 	if writeWorkflow {
 		wfDir := filepath.Join(projectRoot, ".github", "workflows")
 		if err := os.MkdirAll(wfDir, 0o755); err != nil {
@@ -312,6 +320,7 @@ func Run(projectRoot string, reg *adapter.Registry, writeWorkflow bool) (Result,
 		parts = append(parts, "android-focused lanes")
 	}
 	parts = append(parts, "next: cp .env.example .env → docs/setup.md → tern doctor")
+	parts = append(parts, "AGENTS.md for AI helpers")
 	parts = append(parts, "CI: .github/workflows/tern-release.yml")
 	res.Message = strings.Join(parts, " · ")
 	return res, nil

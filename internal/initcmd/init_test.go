@@ -64,4 +64,52 @@ android {
 	if _, err := os.Stat(filepath.Join(dir, "secrets")); err != nil {
 		t.Fatal("expected secrets/ dir")
 	}
+	agents, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if err != nil {
+		t.Fatal("expected AGENTS.md")
+	}
+	begin, end := AgentsMarkers()
+	if !strings.Contains(string(agents), begin) || !strings.Contains(string(agents), end) {
+		t.Fatalf("AGENTS.md missing Tern markers: %s", agents)
+	}
+	if !strings.Contains(string(agents), "env:NAME") {
+		t.Fatal("AGENTS.md missing secrets convention")
+	}
+}
+
+func TestEnsureProjectAgents_AppendsWithoutClobber(t *testing.T) {
+	dir := t.TempDir()
+	pre := "# Existing agents\n\nDo not delete me.\n"
+	_ = os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(pre), 0o644)
+	d := Detected{Adapter: "flutter", HasAndroid: true, PackageID: "com.x.app"}
+	path, err := EnsureProjectAgents(dir, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	s := string(data)
+	if !strings.Contains(s, "Do not delete me") {
+		t.Fatal("clobbered existing AGENTS.md")
+	}
+	begin, end := AgentsMarkers()
+	if !strings.Contains(s, begin) || !strings.Contains(s, end) {
+		t.Fatal("missing Tern section")
+	}
+	// Second call replaces Tern block only.
+	d.AppName = "Updated"
+	_, err = EnsureProjectAgents(dir, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data2, _ := os.ReadFile(path)
+	s2 := string(data2)
+	if strings.Count(s2, begin) != 1 {
+		t.Fatalf("duplicate Tern sections: %d", strings.Count(s2, begin))
+	}
+	if !strings.Contains(s2, "Updated") {
+		t.Fatal("expected refreshed Tern section")
+	}
+	if !strings.Contains(s2, "Do not delete me") {
+		t.Fatal("lost preamble on refresh")
+	}
 }
