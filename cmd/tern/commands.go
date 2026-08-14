@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 
 	"github.com/darkmintis/Tern/internal/adapter"
@@ -198,6 +200,66 @@ func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 	c.Flags().StringVar(&notes, "notes", "", "default|none|text, or omit for Bug fixes and improvements.")
 	c.Flags().StringVar(&notesFile, "notes-file", "", "path to release notes file")
 	c.Flags().StringVar(&notesLocale, "notes-locale", "", "Play notes locale (default en-US)")
+	return c
+}
+
+func cmdNotes(g *globalFlags) *cobra.Command {
+	var releaseName, notes, notesFile, notesLocale string
+	c := &cobra.Command{
+		Use:   "notes",
+		Short: "Preview resolved store release name and notes",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			spec := releasemeta.DefaultSpec()
+			if releaseName != "" {
+				strategy, custom, err := releasemeta.ParseNameToken(releaseName)
+				if err != nil {
+					return err
+				}
+				spec.NameStrategy = strategy
+				spec.NameCustom = custom
+			}
+			if notesFile != "" {
+				spec.NotesMode = releasemeta.NotesFile
+				spec.NotesFile = notesFile
+			} else if notes != "" {
+				mode, text, file, err := releasemeta.ParseNotesToken(notes)
+				if err != nil {
+					return err
+				}
+				spec.NotesMode = mode
+				spec.NotesText = text
+				spec.NotesFile = file
+			}
+			if notesLocale != "" {
+				spec.NotesLocale = notesLocale
+			}
+			resolved, err := releasemeta.Resolve(g.dir, spec)
+			if err != nil {
+				return err
+			}
+			if g.json {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(map[string]string{
+					"name":         resolved.Name,
+					"notes":        resolved.Notes,
+					"notes_locale": resolved.NotesLocale,
+					"version":      resolved.Version,
+					"marketing":    resolved.Marketing,
+					"build":        resolved.Build,
+				})
+			}
+			fmt.Printf("name: %s\n", resolved.Name)
+			fmt.Printf("locale: %s\n", resolved.NotesLocale)
+			fmt.Printf("version: %s\n", resolved.Version)
+			fmt.Printf("notes:\n%s\n", resolved.Notes)
+			return nil
+		},
+	}
+	c.Flags().StringVar(&releaseName, "release-name", "", "version|version_build|… or custom title")
+	c.Flags().StringVar(&notes, "notes", "", "default|none|literal text")
+	c.Flags().StringVar(&notesFile, "notes-file", "", "path to release notes file")
+	c.Flags().StringVar(&notesLocale, "notes-locale", "", "notes locale (default en-US)")
 	return c
 }
 
