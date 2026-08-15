@@ -4,7 +4,7 @@
 /tmp/
 *.exe
 /tern
-/local/
+.local/
 
 # Secrets / signing material (never commit)
 .env
