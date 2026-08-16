@@ -31,6 +31,10 @@ type UploadRequest struct {
 // Client uploads to Play Console API.
 type Client interface {
 	Upload(ctx context.Context, req UploadRequest) (string, error)
+	// Lookup returns the newest eligible release live on a track.
+	Lookup(ctx context.Context, req LookupRequest) (SourceRelease, error)
+	// Promote points an existing track release at another track without re-uploading.
+	Promote(ctx context.Context, req PromoteRequest) (string, error)
 }
 
 // APIClient uploads AABs/APKs via google.golang.org/api/androidpublisher/v3.
@@ -63,24 +67,9 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		track = "internal"
 	}
 
-	creds := c.CredentialsFile
-	if creds == "" {
-		creds = os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-	}
-	if creds == "" {
-		return "", ternerrors.NewHint(ternerrors.ClassUpload,
-			"play: set GOOGLE_APPLICATION_CREDENTIALS to a Play Console service-account JSON key",
-			"Play Console → Setup → API access → service account → download JSON → export the path")
-	}
-	if _, err := os.Stat(creds); err != nil {
-		return "", ternerrors.WrapHint(ternerrors.ClassUpload,
-			"Play credentials file missing",
-			"export GOOGLE_APPLICATION_CREDENTIALS to an existing service-account JSON path", err)
-	}
-
-	svc, err := androidpublisher.NewService(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, creds))
+	svc, err := c.publisherService(ctx)
 	if err != nil {
-		return "", classifyUpload("play: creating publisher client", err)
+		return "", err
 	}
 
 	edit, err := svc.Edits.Insert(req.PackageName, &androidpublisher.AppEdit{}).Context(ctx).Do()
@@ -160,6 +149,29 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 		msg += " notes=set"
 	}
 	return msg, nil
+}
+
+// publisherService builds the authenticated Play publisher client.
+func (c APIClient) publisherService(ctx context.Context) (*androidpublisher.Service, error) {
+	creds := c.CredentialsFile
+	if creds == "" {
+		creds = os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	}
+	if creds == "" {
+		return nil, ternerrors.NewHint(ternerrors.ClassUpload,
+			"play: set GOOGLE_APPLICATION_CREDENTIALS to a Play Console service-account JSON key",
+			"Play Console → Setup → API access → service account → download JSON → export the path")
+	}
+	if _, err := os.Stat(creds); err != nil {
+		return nil, ternerrors.WrapHint(ternerrors.ClassUpload,
+			"Play credentials file missing",
+			"export GOOGLE_APPLICATION_CREDENTIALS to an existing service-account JSON path", err)
+	}
+	svc, err := androidpublisher.NewService(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, creds))
+	if err != nil {
+		return nil, classifyUpload("play: creating publisher client", err)
+	}
+	return svc, nil
 }
 
 func classifyUpload(fallback string, err error) error {
