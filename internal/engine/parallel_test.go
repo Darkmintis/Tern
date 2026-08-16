@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,19 +14,25 @@ import (
 	"github.com/darkmintis/Tern/internal/output"
 )
 
+type timeWindow struct{ start, end time.Time }
+
 type slowAdapter struct {
-	builds atomic.Int32
+	mu     sync.Mutex
+	builds []timeWindow
 }
 
 func (s *slowAdapter) Name() string       { return "flutter" }
 func (s *slowAdapter) Detect(string) bool { return true }
 func (s *slowAdapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter.BuildArtifact, error) {
-	s.builds.Add(1)
+	start := time.Now()
 	select {
 	case <-ctx.Done():
 		return adapter.BuildArtifact{}, ctx.Err()
 	case <-time.After(80 * time.Millisecond):
 	}
+	s.mu.Lock()
+	s.builds = append(s.builds, timeWindow{start: start, end: time.Now()})
+	s.mu.Unlock()
 	path := filepath.Join(opts.ProjectRoot, "out-"+string(opts.Platform))
 	_ = os.WriteFile(path, []byte(string(opts.Platform)), 0o644)
 	kind := "aab"
@@ -47,19 +53,31 @@ func TestParallelBuilds(t *testing.T) {
 	}
 	ad := &slowAdapter{}
 	eng := engine.New(adapter.NewRegistry(ad))
-	start := time.Now()
 	if err := eng.RunLane(context.Background(), cfg, "r", engine.Options{
 		ProjectRoot: dir,
 		Emitter:     output.New(output.ModeJSON),
 	}); err != nil {
 		t.Fatal(err)
 	}
-	elapsed := time.Since(start)
-	if ad.builds.Load() != 2 {
-		t.Fatalf("builds=%d", ad.builds.Load())
+	if len(ad.builds) != 2 {
+		t.Fatalf("builds=%d", len(ad.builds))
 	}
-	// Sequential would be ~160ms+; parallel should finish closer to one build.
-	if elapsed > 140*time.Millisecond {
-		t.Fatalf("expected parallel wall-clock, got %s", elapsed)
+	// The builds must overlap in time; a sequential run would produce
+	// disjoint windows regardless of machine speed.
+	if overlap(ad.builds[0], ad.builds[1]) {
+		return
 	}
+	t.Fatalf("expected parallel builds to overlap, got %v and %v", ad.builds[0], ad.builds[1])
+}
+
+func overlap(a, b timeWindow) bool {
+	start := a.start
+	if b.start.After(start) {
+		start = b.start
+	}
+	end := a.end
+	if b.end.Before(end) {
+		end = b.end
+	}
+	return start.Before(end)
 }
