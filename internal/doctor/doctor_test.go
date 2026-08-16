@@ -73,15 +73,15 @@ lane release:
 	if err != nil {
 		t.Fatal(err)
 	}
-	checks, err := doctor.Run(doctor.Options{
+	// The `flutter` toolchain check legitimately varies by host (a machine with
+	// flutter yields OK:true and thus err==nil). Never assert on it — only the
+	// deterministic project/material checks below.
+	checks, _ := doctor.Run(doctor.Options{
 		ProjectRoot: dir,
 		Config:      cfg,
 		Registry:    adapter.NewRegistry(testFlutterAdapter()),
 		Emitter:     output.New(output.ModeJSON),
 	})
-	if err != nil {
-		t.Fatalf("%v checks=%+v", err, checks)
-	}
 	assertCheck(t, checks, "adapter", true)
 	assertCheck(t, checks, "android_signing_gradle", true)
 	assertCheck(t, checks, "android_package", true)
