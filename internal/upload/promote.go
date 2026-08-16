@@ -98,12 +98,12 @@ func ParsePromoteTargets(source, target string) (config.Platform, string, string
 	}
 	srcIOS := isIOSStage(src)
 	tgtIOS := isIOSStage(tgt)
-	if srcIOS || tgtIOS {
-		if !(srcIOS && tgtIOS) {
-			return "", "", "", ternerrors.New(ternerrors.ClassUpload,
-				fmt.Sprintf("promote: %q and %q must be both iOS stages (testflight/appstore) or both Android tracks", source, target))
-		}
+	if srcIOS && tgtIOS {
 		return config.PlatformIOS, src, tgt, nil
+	}
+	if srcIOS || tgtIOS {
+		return "", "", "", ternerrors.New(ternerrors.ClassUpload,
+			fmt.Sprintf("promote: %q and %q must be both iOS stages (testflight/appstore) or both Android tracks", source, target))
 	}
 	srcTrack, ok := playTrack(src)
 	if !ok {
