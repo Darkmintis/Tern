@@ -3,6 +3,7 @@ package asc
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,11 +33,21 @@ type UploadRequest struct {
 // Client uploads to ASC.
 type Client interface {
 	Upload(ctx context.Context, req UploadRequest) (string, error)
+	// Lookup returns the newest succeeded TestFlight build for the app.
+	Lookup(ctx context.Context, req LookupRequest) (SourceBuild, error)
+	// Promote references an existing TestFlight build in the App Store version
+	// without triggering a new archive/upload.
+	Promote(ctx context.Context, req PromoteRequest) (string, error)
 }
 
-// APIClient uploads IPAs with xcrun altool (API key auth).
+// APIClient uploads IPAs with xcrun altool (API key auth) and drives the
+// App Store Connect REST API for promote.
 type APIClient struct {
 	Runner execx.Runner
+	// BaseURL overrides the ASC API root (tests). Empty means the production API.
+	BaseURL string
+	// HTTPClient overrides the default client (tests).
+	HTTPClient *http.Client
 }
 
 func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error) {
