@@ -27,11 +27,27 @@ func (f *fakePlay) Upload(ctx context.Context, req play.UploadRequest) (string, 
 	return "ok-play", nil
 }
 
+func (f *fakePlay) Lookup(ctx context.Context, req play.LookupRequest) (play.SourceRelease, error) {
+	return play.SourceRelease{Track: req.Track, Eligible: false}, nil
+}
+
+func (f *fakePlay) Promote(ctx context.Context, req play.PromoteRequest) (string, error) {
+	return "ok-play-promote", nil
+}
+
 type fakeASC struct{ called bool }
 
 func (f *fakeASC) Upload(ctx context.Context, req asc.UploadRequest) (string, error) {
 	f.called = true
 	return "ok-asc", nil
+}
+
+func (f *fakeASC) Lookup(ctx context.Context, req asc.LookupRequest) (asc.SourceBuild, error) {
+	return asc.SourceBuild{}, nil
+}
+
+func (f *fakeASC) Promote(ctx context.Context, req asc.PromoteRequest) (string, error) {
+	return "ok-asc-promote", nil
 }
 
 func TestClientDryRun(t *testing.T) {

@@ -23,6 +23,7 @@ func TestRewriteLaneShorthand(t *testing.T) {
 		{"flag first", []string{"tern", "-v"}, nil},
 		{"known command", []string{"tern", "version"}, nil},
 		{"known command flags", []string{"tern", "doctor", "--json"}, nil},
+		{"promote known command", []string{"tern", "promote", "internal", "production"}, nil},
 		{"lane shorthand", []string{"tern", "release"}, []string{"tern", "run", "release"}},
 		{"lane shorthand with flags", []string{"tern", "release", "--dry-run"}, []string{"tern", "run", "release", "--dry-run"}},
 	}
@@ -137,6 +138,30 @@ func TestRunUnknownLaneErrors(t *testing.T) {
 		t.Fatal("expected unknown lane error")
 	}
 	if msg := ternerrors.MessageOf(err); msg != "unknown lane: nope" {
+		t.Fatalf("msg=%q", msg)
+	}
+}
+
+func TestPromoteRequiresTwoArgs(t *testing.T) {
+	root := newRoot()
+	root.SetArgs([]string{"promote", "internal"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected promote arg-count error")
+	}
+	if !strings.Contains(err.Error(), "accepts 2 arg") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestPromoteRejectsMixedPlatforms(t *testing.T) {
+	root := newRoot()
+	root.SetArgs([]string{"promote", "--dry-run", "internal", "appstore"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected mixed-platform error")
+	}
+	if msg := ternerrors.MessageOf(err); !strings.Contains(msg, "iOS stages") {
 		t.Fatalf("msg=%q", msg)
 	}
 }

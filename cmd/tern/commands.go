@@ -14,6 +14,7 @@ import (
 	"github.com/darkmintis/Tern/internal/engine"
 	initcmd "github.com/darkmintis/Tern/internal/initcmd"
 	"github.com/darkmintis/Tern/internal/releasemeta"
+	"github.com/darkmintis/Tern/internal/upload"
 	"github.com/darkmintis/Tern/internal/validate"
 	"github.com/darkmintis/Tern/internal/version"
 	"github.com/spf13/cobra"
@@ -200,6 +201,42 @@ func cmdShip(g *globalFlags, reg *adapter.Registry) *cobra.Command {
 	c.Flags().StringVar(&notes, "notes", "", "default|none|text, or omit for Bug fixes and improvements.")
 	c.Flags().StringVar(&notesFile, "notes-file", "", "path to release notes file")
 	c.Flags().StringVar(&notesLocale, "notes-locale", "", "Play notes locale (default en-US)")
+	return c
+}
+
+func cmdPromote(g *globalFlags) *cobra.Command {
+	var rollout float64
+	var releaseVersion string
+	c := &cobra.Command{
+		Use:   "promote <source> <target>",
+		Short: "Promote an existing release between tracks (internal, alpha, beta, production) or testflight → appstore",
+		Example: `  tern promote internal production
+  tern promote closed production
+  tern promote testflight appstore`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if rollout != 0 {
+				norm, err := config.NormalizeRollout(rollout)
+				if err != nil {
+					return err
+				}
+				rollout = norm
+			}
+			client := upload.NewClient()
+			return client.Promote(context.Background(), upload.PromoteOpts{
+				ProjectRoot:    g.dir,
+				Source:         args[0],
+				Target:         args[1],
+				Rollout:        rollout,
+				ReleaseVersion: releaseVersion,
+				DryRun:         g.dryRun,
+				Yes:            g.yes,
+				Emitter:        emitter(g),
+			})
+		},
+	}
+	c.Flags().Float64Var(&rollout, "rollout", 0, "staged rollout on the target track: 10 or 0.1 for 10%; 0 = full (only Play)")
+	c.Flags().StringVar(&releaseVersion, "release-version", "", "iOS marketing version string for the App Store entry (e.g. 1.2.3)")
 	return c
 }
 
