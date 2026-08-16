@@ -1,8 +1,8 @@
 package doctor_test
 
 import (
+	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -13,10 +13,23 @@ import (
 	"github.com/darkmintis/Tern/internal/output"
 )
 
+// noopRunner never shells out, so unit tests are hermetic regardless of
+// whether real toolchains are on PATH (AGENTS.md).
+type noopRunner struct{}
+
+func (noopRunner) Run(ctx context.Context, dir, name string, args ...string) (string, error) {
+	return "", nil
+}
+
+// testFlutterAdapter returns a Flutter adapter whose PATH lookup and command
+// execution are both stubbed, so doctor.Run never touches a real flutter.
+func testFlutterAdapter() *flutter.Adapter {
+	ad := flutter.New(noopRunner{})
+	ad.LookPath = func(string) (string, error) { return "/ok/flutter", nil }
+	return ad
+}
+
 func TestDoctorFlutterAndroid(t *testing.T) {
-	if _, err := exec.LookPath("flutter"); err != nil {
-		t.Skip("flutter not on PATH")
-	}
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte("dependencies:\n  flutter:\n    sdk: flutter\n"), 0o644)
 	_ = os.WriteFile(filepath.Join(dir, ".metadata"), []byte("version: 1\n"), 0o644)
@@ -63,18 +76,19 @@ lane release:
 	checks, err := doctor.Run(doctor.Options{
 		ProjectRoot: dir,
 		Config:      cfg,
-		Registry:    adapter.NewRegistry(flutter.New(nil)),
+		Registry:    adapter.NewRegistry(testFlutterAdapter()),
 		Emitter:     output.New(output.ModeJSON),
 	})
 	if err != nil {
 		t.Fatalf("%v checks=%+v", err, checks)
 	}
+	assertCheck(t, checks, "adapter", true)
+	assertCheck(t, checks, "android_signing_gradle", true)
+	assertCheck(t, checks, "android_package", true)
+	assertCheck(t, checks, "env:ANDROID_KEYSTORE", true)
 }
 
 func TestDoctorFlagsSyncCerts(t *testing.T) {
-	if _, err := exec.LookPath("flutter"); err != nil {
-		t.Skip("flutter not on PATH")
-	}
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte("dependencies:\n  flutter:\n    sdk: flutter\n"), 0o644)
 	_ = os.WriteFile(filepath.Join(dir, ".metadata"), []byte("v:1\n"), 0o644)
@@ -92,13 +106,28 @@ android { applicationId "com.example.app"
 	t.Setenv("ANDROID_HOME", sdk)
 	t.Setenv("CERT_REPO", "git@example.com:org/certs.git")
 	cfg, _ := config.Load(dir)
-	_, err := doctor.Run(doctor.Options{
+	checks, err := doctor.Run(doctor.Options{
 		ProjectRoot: dir,
 		Config:      cfg,
-		Registry:    adapter.NewRegistry(flutter.New(nil)),
+		Registry:    adapter.NewRegistry(testFlutterAdapter()),
 		Emitter:     output.New(output.ModeJSON),
 	})
 	if err == nil {
 		t.Fatal("expected sync_certs doctor failure")
 	}
+	assertCheck(t, checks, "sync_certs", false)
+}
+
+// assertCheck finds a named doctor check and verifies its OK flag.
+func assertCheck(t *testing.T, checks []doctor.Check, name string, ok bool) {
+	t.Helper()
+	for _, c := range checks {
+		if c.Name == name {
+			if c.OK != ok {
+				t.Fatalf("check %q: OK=%v want %v (%s)", name, c.OK, ok, c.Message)
+			}
+			return
+		}
+	}
+	t.Fatalf("no check named %q; got %d checks", name, len(checks))
 }
