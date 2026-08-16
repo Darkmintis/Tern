@@ -65,6 +65,7 @@ func Compute(in Input) (string, error) {
 			}
 			// Skip heavy/generated noise.
 			rel, _ := filepath.Rel(in.ProjectRoot, path)
+			rel = filepath.ToSlash(rel)
 			if strings.Contains(rel, "build/") || strings.Contains(rel, ".dart_tool/") ||
 				strings.Contains(rel, "Pods/") || strings.HasSuffix(rel, ".tern/") {
 				return nil
