@@ -3,18 +3,21 @@ package execx_test
 import (
 	"bytes"
 	"context"
-	"path/filepath"
-	"runtime"
+	"os/exec"
 	"testing"
 
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	execx "github.com/darkmintis/Tern/internal/exec"
 )
 
-// goBin returns the go binary that runs this test (cross-platform present).
+// goBin returns a go binary for the test (cross-platform).
 func goBin(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(runtime.GOROOT(), "bin", "go")
+	p, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
 }
 
 func TestRealRunnerSuccess(t *testing.T) {
