@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	applicationIDRe = regexp.MustCompile(`applicationId\s+["']([^"']+)["']`)
-	namespaceRe     = regexp.MustCompile(`namespace\s+["']([^"']+)["']`)
+	applicationIDRe = regexp.MustCompile(`applicationId\s*(?:=)?\s*["']([^"']+)["']`)
+	namespaceRe     = regexp.MustCompile(`namespace\s*(?:=)?\s*["']([^"']+)["']`)
 )
 
 // AndroidPackageID reads applicationId / namespace from the Flutter android app gradle files.
