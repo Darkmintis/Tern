@@ -29,6 +29,14 @@ func (r *recordingRunner) Run(ctx context.Context, dir, name string, args ...str
 	return "ok", nil
 }
 
+// newTestAdapter returns an adapter with a stubbed PATH lookup so tests never
+// touch the real `flutter` binary (AGENTS.md: mock os/exec in unit tests).
+func newTestAdapter(r *recordingRunner) *flutter.Adapter {
+	ad := flutter.New(r)
+	ad.LookPath = func(string) (string, error) { return "/ok/flutter", nil }
+	return ad
+}
+
 func lastCall(t *testing.T, r *recordingRunner) []string {
 	t.Helper()
 	if len(r.calls) == 0 {
@@ -53,7 +61,7 @@ func androidProject(t *testing.T) string {
 func TestBuildAndroidReleaseInvokesAppbundle(t *testing.T) {
 	dir := androidProject(t)
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	art, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: dir,
 		Platform:    config.PlatformAndroid,
@@ -87,7 +95,7 @@ func apkProject(t *testing.T, name string) string {
 
 func TestBuildAndroidApkInvokesApk(t *testing.T) {
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	if _, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot:  apkProject(t, "app-release.apk"),
 		Platform:     config.PlatformAndroid,
@@ -104,7 +112,7 @@ func TestBuildAndroidApkInvokesApk(t *testing.T) {
 
 func TestBuildAndroidDebugInvokesApkDebug(t *testing.T) {
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	if _, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: apkProject(t, "app-debug.apk"),
 		Platform:    config.PlatformAndroid,
@@ -128,7 +136,7 @@ func TestBuildFlavorAndNoPubAppended(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	if _, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: dir,
 		Platform:    config.PlatformAndroid,
@@ -148,7 +156,7 @@ func TestBuildFlavorAndNoPubAppended(t *testing.T) {
 func TestBuildCleanRunsCleanFirst(t *testing.T) {
 	dir := androidProject(t)
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	if _, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: dir,
 		Platform:    config.PlatformAndroid,
@@ -172,7 +180,7 @@ func TestBuildIOSReleaseFindsIPA(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	art, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: dir,
 		Platform:    config.PlatformIOS,
@@ -191,7 +199,7 @@ func TestBuildIOSReleaseFindsIPA(t *testing.T) {
 
 func TestBuildIOSDebugNoCodesign(t *testing.T) {
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	if _, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: t.TempDir(),
 		Platform:    config.PlatformIOS,
@@ -222,7 +230,7 @@ func TestBuildUnsupportedPlatform(t *testing.T) {
 
 func TestBuildFlutterMissing(t *testing.T) {
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	ad.LookPath = func(string) (string, error) { return "", os.ErrNotExist }
 	_, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: t.TempDir(),
@@ -238,7 +246,7 @@ func TestBuildRunnerFailureClassified(t *testing.T) {
 	r := &recordingRunner{failOn: map[string]error{
 		"flutter": ternerrors.WrapStderr(ternerrors.ClassExec, "cmd", "trying to find matching licenses... SDK licenses not accepted", errors.New("boom")),
 	}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	_, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: t.TempDir(),
 		Platform:    config.PlatformAndroid,
@@ -256,7 +264,7 @@ func TestBuildCleanFailure(t *testing.T) {
 	r := &recordingRunner{failOn: map[string]error{
 		"flutter": errors.New("clean exploded"),
 	}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	_, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: t.TempDir(),
 		Platform:    config.PlatformAndroid,
@@ -270,7 +278,7 @@ func TestBuildCleanFailure(t *testing.T) {
 
 func TestBuildIOSNoIPAProduced(t *testing.T) {
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	_, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: t.TempDir(),
 		Platform:    config.PlatformIOS,
@@ -286,7 +294,7 @@ func TestBuildIOSNoIPAProduced(t *testing.T) {
 
 func TestBuildAndroidNoArtifactFound(t *testing.T) {
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	_, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot: t.TempDir(),
 		Platform:    config.PlatformAndroid,
@@ -310,7 +318,7 @@ func TestEffectiveFlavorSchemeFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := &recordingRunner{failOn: map[string]error{}}
-	ad := flutter.New(r)
+	ad := newTestAdapter(r)
 	// Scheme on Android with no flavor should act as flavor.
 	if _, err := ad.Build(context.Background(), adapter.BuildOptions{
 		ProjectRoot:  dir,
