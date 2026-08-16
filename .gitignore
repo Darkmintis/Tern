@@ -20,3 +20,9 @@ AuthKey_*.p8
 
 # Tern local state (artifacts, fingerprints)
 .tern/
+
+# Go coverage profiles (regenerable tool output)
+/flutter
+/coverage
+*.cover
+*.out

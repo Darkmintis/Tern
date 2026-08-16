@@ -1,4 +1,4 @@
-.PHONY: test lint fmt build ci install-lint
+.PHONY: test lint fmt build ci install-lint coverage bench
 
 GOFMT ?= $(shell go env GOROOT)/bin/gofmt
 # Keep in sync with .github/workflows/ci.yml
@@ -10,6 +10,12 @@ fmt:
 
 test:
 	go test ./...
+
+coverage:
+	bash scripts/check-coverage.sh
+
+bench:
+	go test ./internal/engine/ -bench . -benchtime 10x -run '^$$' -benchmem
 
 install-lint:
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
