@@ -31,6 +31,15 @@ func TestFlutterVersionErrors(t *testing.T) {
 	}
 }
 
+func TestFlutterLocalVersion(t *testing.T) {
+	dir := t.TempDir()
+	writeMeta(t, dir, "pubspec.yaml", "name: demo\nversion: 1.2.3+45\n")
+	v, err := projectmeta.FlutterLocalVersion(dir)
+	if err != nil || v.Marketing != "1.2.3" || v.Code != 45 {
+		t.Fatalf("%+v %v", v, err)
+	}
+}
+
 func TestAppDisplayName(t *testing.T) {
 	dir := t.TempDir()
 	writeMeta(t, dir, "pubspec.yaml", "name: my_super_app\n")
