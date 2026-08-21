@@ -81,11 +81,22 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 
 	artifactsMap := map[config.Platform]string{}
 	var mu sync.Mutex
+	playTracks := playTracksFromLane(lane)
+	var playVersionOnce sync.Once
 
 	i := 0
 	for i < len(lane.Steps) {
 		// Parallel group: consecutive independent build steps for different platforms.
 		if lane.Steps[i].Kind == config.StepBuild {
+			if err := e.ensurePlayVersionsBeforeBuilds(ctx, root, playTracks, opts, em, &playVersionOnce); err != nil {
+				class, _ := ternerrors.AsClass(err)
+				em.Emit(output.Event{
+					Type: "error", Lane: laneName, Status: "error",
+					Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
+				})
+				em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
+				return err
+			}
 			group := []config.Step{lane.Steps[i]}
 			j := i + 1
 			seen := map[config.Platform]bool{lane.Steps[i].Platform: true}

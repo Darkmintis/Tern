@@ -81,6 +81,10 @@ func (e *Engine) runUploadOrShip(
 		_ = vres
 	}
 
+	if err := e.ensurePlayVersion(ctx, root, step.UploadTarget, step.Track, opts, em); err != nil {
+		return "", err
+	}
+
 	if err := safety.ConfirmProduction(safety.ConfirmOpts{
 		Target: step.UploadTarget,
 		Track:  step.Track,
@@ -142,6 +146,15 @@ func (e *Engine) Ship(ctx context.Context, opts ShipOptions) error {
 		}); verr != nil {
 			return verr
 		}
+	}
+
+	if err := e.ensurePlayVersion(ctx, root, opts.Target, opts.Track, Options{
+		ProjectRoot: root,
+		DryRun:      opts.DryRun,
+		Force:       opts.Force,
+		Yes:         opts.Yes,
+	}, em); err != nil {
+		return err
 	}
 
 	if err := safety.ConfirmProduction(safety.ConfirmOpts{
