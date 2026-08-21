@@ -38,3 +38,31 @@ func TestBumpDryRun(t *testing.T) {
 		t.Fatal("dry-run mutated file")
 	}
 }
+
+func TestBumpPastStore(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pubspec.yaml")
+	_ = os.WriteFile(path, []byte("name: app\nversion: 1.2.3+9\n"), 0o644)
+	res, err := bump.BumpPastStore(dir, 9, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "version: 1.2.4+10") {
+		t.Fatalf("got %s message=%s", data, res.Message)
+	}
+}
+
+func TestBumpPastStoreJumpsAboveStore(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pubspec.yaml")
+	_ = os.WriteFile(path, []byte("name: app\nversion: 1.0.0+2\n"), 0o644)
+	_, err := bump.BumpPastStore(dir, 40, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "version: 1.0.1+41") {
+		t.Fatalf("got %s", data)
+	}
+}

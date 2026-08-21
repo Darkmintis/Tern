@@ -135,3 +135,46 @@ func TagName(prefix, version string) string {
 	version = strings.Split(version, "+")[0]
 	return prefix + version
 }
+
+// BumpPastStore bumps the marketing patch and sets +build to at least storeVC+1.
+// Play rejects uploads when versionCode is not strictly greater than what is
+// already on the track; this is the usual interactive/CI recovery path.
+func BumpPastStore(projectRoot string, storeVC int64, dryRun bool) (Result, error) {
+	if storeVC < 0 {
+		storeVC = 0
+	}
+	pubspec := filepath.Join(projectRoot, "pubspec.yaml")
+	if _, err := os.Stat(pubspec); err != nil {
+		return Result{}, ternerrors.New(ternerrors.ClassConfig, "no pubspec.yaml to bump past store version")
+	}
+	data, err := os.ReadFile(pubspec)
+	if err != nil {
+		return Result{}, ternerrors.Wrap(ternerrors.ClassConfig, "reading pubspec", err)
+	}
+	m := pubspecVersionRe.FindSubmatch(data)
+	if m == nil {
+		return Result{}, ternerrors.New(ternerrors.ClassConfig, "no version: line in pubspec.yaml")
+	}
+	maj, _ := strconv.Atoi(string(m[1]))
+	min, _ := strconv.Atoi(string(m[2]))
+	pat, _ := strconv.Atoi(string(m[3]))
+	build := 0
+	if len(m[5]) > 0 {
+		build, _ = strconv.Atoi(string(m[5]))
+	}
+	old := string(m[0])
+	pat++
+	wantBuild := int(storeVC) + 1
+	if build+1 > wantBuild {
+		wantBuild = build + 1
+	}
+	newVer := fmt.Sprintf("version: %d.%d.%d+%d", maj, min, pat, wantBuild)
+	if dryRun {
+		return Result{File: pubspec, Old: old, New: newVer, Message: "dry-run: " + old + " -> " + newVer}, nil
+	}
+	updated := pubspecVersionRe.ReplaceAll(data, []byte(newVer))
+	if err := os.WriteFile(pubspec, updated, 0o644); err != nil {
+		return Result{}, ternerrors.Wrap(ternerrors.ClassConfig, "writing pubspec", err)
+	}
+	return Result{File: pubspec, Old: old, New: newVer, Message: old + " -> " + newVer}, nil
+}
