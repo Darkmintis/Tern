@@ -39,7 +39,7 @@ Read each failing check and its `hint:`. Common fixes:
 | iOS code signing or provisioning failed | Xcode team/profile | Fix signing in Xcode; `flutter build ipa` once |
 | Play Console denied access | SA lacks app access | Play Console → Users and permissions |
 | App package not found in Play Console | App missing / wrong id | Create app or set `ANDROID_PACKAGE_NAME` |
-| Play versionCode already used | Duplicate build number | `bump version build`, rebuild, upload |
+| Play versionCode already used | Duplicate build number | Tern should prompt before build; or `bump version build` / `tern release --yes`, rebuild, upload |
 | Network error talking to store APIs | Offline / proxy | Fix network/VPN; retry |
 | App Store Connect API authentication failed | Bad ASC API key | Check key id / issuer / `.p8` path |
 
@@ -57,7 +57,7 @@ Read each failing check and its `hint:`. Common fixes:
 | permission denied / 403 | Grant the service account access to the app in Play Console |
 | wrong package | Set `ANDROID_PACKAGE_NAME` or fix `applicationId` |
 | artifact missing | Ensure `build android release` succeeded and produced an `.aab` |
-| versionCode clash | Bump build number and rebuild |
+| versionCode clash | Answer yes to the pre-build bump prompt, or `tern bump version build` and rebuild |
 
 ## TestFlight upload fails
 

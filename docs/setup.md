@@ -92,6 +92,13 @@ tern release --dry-run    # plan only — no upload
 tern release              # bump → sign → build AAB → Play internal → tag
 ```
 
+Before the first Android build (and again before Play upload), Tern compares your
+local `pubspec` `versionCode` (`1.2.3+45` → `45`) to the newest release on that
+Play track. If local is missing or not strictly greater, Tern asks to bump patch
++ build (or auto-bumps with `--yes` in CI). That avoids a long Flutter build that
+Play would reject. Skip with `--force` only when you know what you are doing.
+Requires `GOOGLE_APPLICATION_CREDENTIALS`.
+
 If upload fails after a good build:
 
 ```bash
