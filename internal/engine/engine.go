@@ -70,13 +70,11 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 	start := time.Now()
 	em.Emit(output.Event{Type: "lane_start", Lane: laneName})
 
-	// In dry-run, save pubspec.yaml so we can restore it after the lane.
-	// The bump step will actually write to pubspec so version checks and
-	// git tags see the real bumped version, then we undo everything.
-	var savedPubspec []byte
-	if opts.DryRun {
-		savedPubspec, _ = os.ReadFile(pubspecPath(root))
-	}
+	// Save pubspec.yaml before the lane so we can restore it on failure.
+	// In dry-run, we always restore (to undo the bump). In real runs, we
+	// restore only when the lane fails (so a timeout/error doesn't leave
+	// pubspec in a half-bumped state).
+	savedPubspec, _ := os.ReadFile(pubspecPath(root))
 
 	ad, ok := e.Registry.Detect(root)
 	if !ok {
@@ -141,7 +139,7 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 							Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
 						})
 						em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
-						e.restoreDryRun(root, savedPubspec, em, laneName)
+						e.restorePubspec(root, savedPubspec, em, laneName)
 						return err
 					}
 					i = j
@@ -156,7 +154,7 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 							Status: "error", Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
 						})
 						em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
-						e.restoreDryRun(root, savedPubspec, em, laneName)
+						e.restorePubspec(root, savedPubspec, em, laneName)
 						return err
 					}
 				}
@@ -173,14 +171,16 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 				Status: "error", Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
 			})
 			em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
-			e.restoreDryRun(root, savedPubspec, em, laneName)
+			e.restorePubspec(root, savedPubspec, em, laneName)
 			return err
 		}
 		i++
 	}
 
 	em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "ok", DurationMs: time.Since(start).Milliseconds()})
-	e.restoreDryRun(root, savedPubspec, em, laneName)
+	if opts.DryRun {
+		e.restorePubspec(root, savedPubspec, em, laneName)
+	}
 	return nil
 }
 
@@ -188,7 +188,7 @@ func pubspecPath(root string) string {
 	return root + "/pubspec.yaml"
 }
 
-func (e *Engine) restoreDryRun(root string, saved []byte, em *output.Emitter, laneName string) {
+func (e *Engine) restorePubspec(root string, saved []byte, em *output.Emitter, laneName string) {
 	if saved == nil {
 		return
 	}
@@ -196,12 +196,12 @@ func (e *Engine) restoreDryRun(root string, saved []byte, em *output.Emitter, la
 	if err := os.WriteFile(path, saved, 0o644); err != nil {
 		em.Emit(output.Event{
 			Type: "error", Lane: laneName, Status: "error",
-			Message: "dry-run restore failed: " + err.Error(),
+			Message: "pubspec restore failed: " + err.Error(),
 		})
 		return
 	}
 	em.Emit(output.Event{
-		Type: "dry_run_restore", Lane: laneName, Status: "ok",
+		Type: "pubspec_restored", Lane: laneName, Status: "ok",
 		Message: "pubspec.yaml restored to original state",
 	})
 }
