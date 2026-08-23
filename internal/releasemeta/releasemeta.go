@@ -194,7 +194,7 @@ func Resolve(projectRoot string, spec Spec) (Resolved, error) {
 		if rerr != nil {
 			return Resolved{}, ternerrors.Wrap(ternerrors.ClassConfig, "reading release notes file", rerr)
 		}
-		out.Notes = strings.TrimSpace(string(data))
+		out.Notes = stripHTMLComments(strings.TrimSpace(string(data)))
 		if out.Notes == "" {
 			return Resolved{}, ternerrors.New(ternerrors.ClassConfig, "release notes file is empty: "+spec.NotesFile)
 		}
@@ -262,4 +262,17 @@ func gitOutput(dir string, args ...string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// stripHTMLComments removes <!-- … --> comments and collapses blank lines.
+func stripHTMLComments(s string) string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "<!--") && strings.HasSuffix(trimmed, "-->") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
 }
