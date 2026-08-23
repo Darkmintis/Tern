@@ -42,11 +42,20 @@ func (s *slowAdapter) Build(ctx context.Context, opts adapter.BuildOptions) (ada
 	return adapter.BuildArtifact{Path: path, Platform: opts.Platform, Kind: kind}, nil
 }
 
-func TestParallelBuilds(t *testing.T) {
+func boolPtr(v bool) *bool { return &v }
+
+func setupProject(t *testing.T) string {
+	t.Helper()
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte("name: demo\nversion: 1.0.0+1\ndependencies:\n  flutter:\n    sdk: flutter\n"), 0o644)
 	_ = os.WriteFile(filepath.Join(dir, ".metadata"), []byte("version: 1\n"), 0o644)
 	_ = os.WriteFile(filepath.Join(dir, "Ternfile"), []byte("lane r:\n  build android release\n  build ios release\n"), 0o644)
+	return dir
+}
+
+// TestParallelBuilds verifies builds overlap when --parallel is set.
+func TestParallelBuilds(t *testing.T) {
+	dir := setupProject(t)
 	cfg, err := config.Load(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +64,7 @@ func TestParallelBuilds(t *testing.T) {
 	eng := engine.New(adapter.NewRegistry(ad))
 	if err := eng.RunLane(context.Background(), cfg, "r", engine.Options{
 		ProjectRoot: dir,
+		Parallel:    boolPtr(true),
 		Emitter:     output.New(output.ModeJSON),
 	}); err != nil {
 		t.Fatal(err)
@@ -62,12 +72,33 @@ func TestParallelBuilds(t *testing.T) {
 	if len(ad.builds) != 2 {
 		t.Fatalf("builds=%d", len(ad.builds))
 	}
-	// The builds must overlap in time; a sequential run would produce
-	// disjoint windows regardless of machine speed.
-	if overlap(ad.builds[0], ad.builds[1]) {
-		return
+	if !overlap(ad.builds[0], ad.builds[1]) {
+		t.Fatalf("expected parallel builds to overlap, got %v and %v", ad.builds[0], ad.builds[1])
 	}
-	t.Fatalf("expected parallel builds to overlap, got %v and %v", ad.builds[0], ad.builds[1])
+}
+
+// TestSequentialBuilds verifies builds run one after another by default.
+func TestSequentialBuilds(t *testing.T) {
+	dir := setupProject(t)
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ad := &slowAdapter{}
+	eng := engine.New(adapter.NewRegistry(ad))
+	if err := eng.RunLane(context.Background(), cfg, "r", engine.Options{
+		ProjectRoot: dir,
+		Parallel:    nil, // default: sequential
+		Emitter:     output.New(output.ModeJSON),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(ad.builds) != 2 {
+		t.Fatalf("builds=%d", len(ad.builds))
+	}
+	if overlap(ad.builds[0], ad.builds[1]) {
+		t.Fatalf("expected sequential builds, but they overlapped: %v and %v", ad.builds[0], ad.builds[1])
+	}
 }
 
 func overlap(a, b timeWindow) bool {

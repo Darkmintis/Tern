@@ -132,7 +132,7 @@ func EnsurePlayVersionAhead(opts PlayVersionOpts) (PlayVersionResult, error) {
 		return out, nil
 	}
 
-	ci := inCI(opts.IsCI)
+	ci := InCI(opts.IsCI)
 	tty := isInteractive(opts.IsTTY)
 	hint := "bump with `tern bump version patch` (or build), or re-run with --yes to auto-bump past the store version"
 	if ci || !tty {

@@ -340,6 +340,7 @@ func runLane(g *globalFlags, reg *adapter.Registry, name string) error {
 		Force:       g.force,
 		Yes:         g.yes,
 		Clean:       g.clean,
+		Parallel:    g.resolveParallel(),
 		Emitter:     emitter(g),
 	})
 }

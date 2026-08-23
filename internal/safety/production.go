@@ -52,7 +52,7 @@ func ConfirmProduction(opts ConfirmOpts) error {
 	label := describe(opts.Target, opts.Track)
 	hint := "re-run with --yes to confirm a production upload (required in CI)"
 
-	ci := inCI(opts.IsCI)
+	ci := InCI(opts.IsCI)
 	tty := isInteractive(opts.IsTTY)
 	if ci || !tty {
 		return ternerrors.NewHint(ternerrors.ClassUpload,
@@ -89,7 +89,9 @@ func describe(target, track string) string {
 	return fmt.Sprintf("Play track %q", tr)
 }
 
-func inCI(override *bool) bool {
+// InCI reports whether the process is running in a CI environment.
+// Exported for use by the engine to decide parallel vs sequential builds.
+func InCI(override *bool) bool {
 	if override != nil {
 		return *override
 	}

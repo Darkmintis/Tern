@@ -13,13 +13,14 @@ import (
 )
 
 type globalFlags struct {
-	json    bool
-	dryRun  bool
-	dir     string
-	force   bool
-	yes     bool
-	clean   bool
-	verbose bool
+	json     bool
+	dryRun   bool
+	dir      string
+	force    bool
+	yes      bool
+	clean    bool
+	verbose  bool
+	parallel bool
 }
 
 func newRoot() *cobra.Command {
@@ -43,6 +44,7 @@ func newRoot() *cobra.Command {
 	root.PersistentFlags().BoolVarP(&g.yes, "yes", "y", false, "confirm production uploads without prompting (required in CI)")
 	root.PersistentFlags().BoolVar(&g.clean, "clean", false, "run flutter clean before builds")
 	root.PersistentFlags().BoolVarP(&g.verbose, "verbose", "v", false, "stream full command logs; print full stderr on failure")
+	root.PersistentFlags().BoolVar(&g.parallel, "parallel", false, "run multi-platform builds in parallel (default: sequential)")
 
 	root.AddCommand(cmdVersion())
 	root.AddCommand(cmdInit(g, reg))
@@ -77,4 +79,13 @@ func emitter(g *globalFlags) *output.Emitter {
 		mode = output.ModeJSON
 	}
 	return output.New(mode)
+}
+
+// resolveParallel returns *true when --parallel is set, nil otherwise (sequential default).
+func (g *globalFlags) resolveParallel() *bool {
+	if g.parallel {
+		v := true
+		return &v
+	}
+	return nil
 }

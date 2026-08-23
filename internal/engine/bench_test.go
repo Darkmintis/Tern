@@ -31,7 +31,7 @@ func (b benchAdapter) Build(ctx context.Context, opts adapter.BuildOptions) (ada
 	return adapter.BuildArtifact{Path: path, Platform: opts.Platform, Kind: "aab"}, nil
 }
 
-func benchLane(b *testing.B, ternfile string) {
+func benchLane(b *testing.B, ternfile string, parallel bool) {
 	b.Helper()
 	dir := b.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "pubspec.yaml"),
@@ -46,23 +46,26 @@ func benchLane(b *testing.B, ternfile string) {
 	eng := engine.New(adapter.NewRegistry(ad))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := eng.RunLane(context.Background(), cfg, "r", engine.Options{
+		opts := engine.Options{
 			ProjectRoot: dir,
 			Emitter:     output.New(output.ModeJSON),
-		}); err != nil {
+		}
+		if parallel {
+			opts.Parallel = boolPtr(true)
+		}
+		if err := eng.RunLane(context.Background(), cfg, "r", opts); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-// BenchmarkLane_2ParallelBuilds schedules android + ios concurrently.
+// BenchmarkLane_ParallelBuilds schedules android + ios concurrently.
 // Both builds cost delay; wall-clock should approach config.BuildDelay, not 2x.
-func BenchmarkLane_2ParallelBuilds(b *testing.B) {
-	benchLane(b, "lane r:\n  build android release\n  build ios release\n")
+func BenchmarkLane_ParallelBuilds(b *testing.B) {
+	benchLane(b, "lane r:\n  build android release\n  build ios release\n", true)
 }
 
-// BenchmarkLane_2SequentialBuilds uses two same-platform builds, forcing
-// sequential execution (the parallel-group guard rejects duplicate platforms).
-func BenchmarkLane_2SequentialBuilds(b *testing.B) {
-	benchLane(b, "lane r:\n  build android release\n  build android debug\n")
+// BenchmarkLane_SequentialBuilds runs android + ios one after another.
+func BenchmarkLane_SequentialBuilds(b *testing.B) {
+	benchLane(b, "lane r:\n  build android release\n  build ios release\n", false)
 }

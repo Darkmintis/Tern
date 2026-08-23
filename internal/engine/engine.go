@@ -29,7 +29,10 @@ type Options struct {
 	Clean bool
 	// SkipIncremental disables fingerprint reuse.
 	SkipIncremental bool
-	Emitter         *output.Emitter
+	// Parallel runs multi-platform builds concurrently when set.
+	// Default (nil) is sequential to protect low-RAM local machines.
+	Parallel *bool
+	Emitter  *output.Emitter
 }
 
 // Engine runs lanes against adapters and shared core services.
@@ -83,6 +86,7 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 	var mu sync.Mutex
 	playTracks := playTracksFromLane(lane)
 	var playVersionOnce sync.Once
+	parallelOnce := sync.Once{}
 
 	i := 0
 	for i < len(lane.Steps) {
@@ -110,14 +114,41 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 				j++
 			}
 			if len(group) > 1 {
-				if err := e.runParallelBuilds(ctx, ad, root, group, opts, artifactsMap, &mu, em, laneName); err != nil {
-					class, _ := ternerrors.AsClass(err)
+				parallel := opts.Parallel != nil && *opts.Parallel
+				parallelOnce.Do(func() {
+					mode := "sequential"
+					if parallel {
+						mode = "parallel"
+					}
 					em.Emit(output.Event{
-						Type: "error", Lane: laneName, Status: "error",
-						Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
+						Type: "parallel_mode", Lane: laneName, Status: mode,
+						Message: fmt.Sprintf("multi_platform_builds mode=%s", mode),
 					})
-					em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
-					return err
+				})
+				if parallel {
+					if err := e.runParallelBuilds(ctx, ad, root, group, opts, artifactsMap, &mu, em, laneName); err != nil {
+						class, _ := ternerrors.AsClass(err)
+						em.Emit(output.Event{
+							Type: "error", Lane: laneName, Status: "error",
+							Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
+						})
+						em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
+						return err
+					}
+					i = j
+					continue
+				}
+				// Sequential: run each build step one by one.
+				for _, step := range group {
+					if err := e.runStep(ctx, ad, root, step, opts, artifactsMap, &mu, em, laneName, ""); err != nil {
+						class, _ := ternerrors.AsClass(err)
+						em.Emit(output.Event{
+							Type: "error", Lane: laneName, Step: step.Raw,
+							Status: "error", Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
+						})
+						em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
+						return err
+					}
 				}
 				i = j
 				continue
