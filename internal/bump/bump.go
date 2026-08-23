@@ -60,15 +60,19 @@ func bumpPubspec(path string, level config.BumpLevel, dryRun bool) (Result, erro
 	case config.BumpMajor:
 		maj++
 		min, pat = 0, 0
+		build++
 	case config.BumpMinor:
 		min++
 		pat = 0
+		build++
 	case config.BumpPatch:
 		pat++
+		build++
 	case config.BumpBuild:
 		build++
 	default:
 		pat++
+		build++
 	}
 	newVer := fmt.Sprintf("version: %d.%d.%d", maj, min, pat)
 	if build > 0 || level == config.BumpBuild || strings.Contains(old, "+") {
