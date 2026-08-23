@@ -79,42 +79,49 @@ func EnsurePlayVersionAhead(opts PlayVersionOpts) (PlayVersionResult, error) {
 	out.Local = local.Raw
 	out.LocalVC = local.Code
 
-	track := strings.TrimSpace(opts.Track)
-	if track == "" {
-		track = "internal"
-	}
 	ctx := opts.Ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	store, err := opts.Lookup(ctx, play.LookupRequest{PackageName: pkg, Track: track})
-	if err != nil {
-		return out, ternerrors.WrapHint(ternerrors.ClassUpload,
-			"could not read Play track version",
-			"check GOOGLE_APPLICATION_CREDENTIALS and Play API access; or pass --force to skip this check",
-			err)
+
+	// Scan all Play tracks for the highest versionCode.
+	allTracks := []string{"internal", "alpha", "beta", "production"}
+	var maxStoreVC int64
+	var maxStoreTrack string
+	var maxStoreRelease play.SourceRelease
+	for _, t := range allTracks {
+		store, lerr := opts.Lookup(ctx, play.LookupRequest{PackageName: pkg, Track: t})
+		if lerr != nil {
+			continue // skip tracks we can't read
+		}
+		if store.Eligible && store.VersionCode > maxStoreVC {
+			maxStoreVC = store.VersionCode
+			maxStoreTrack = t
+			maxStoreRelease = store
+		}
 	}
-	if !store.Eligible || store.VersionCode <= 0 {
+
+	if maxStoreVC <= 0 {
 		out.Skipped = true
-		out.Message = fmt.Sprintf("Play track %q has no eligible release yet; local %s is fine", track, local.Raw)
+		out.Message = fmt.Sprintf("Play has no eligible releases on any track; local %s is fine", local.Raw)
 		return out, nil
 	}
-	out.StoreVC = store.VersionCode
-	out.Store = storeLabel(store)
+	out.StoreVC = maxStoreVC
+	out.Store = storeLabel(maxStoreRelease)
 
-	if local.Code > store.VersionCode {
-		out.Message = fmt.Sprintf("local versionCode %d > Play track %q (%d); ok",
-			local.Code, track, store.VersionCode)
+	if local.Code > maxStoreVC {
+		out.Message = fmt.Sprintf("local versionCode %d > Play max %d (track %q); ok",
+			local.Code, maxStoreVC, maxStoreTrack)
 		return out, nil
 	}
 
 	reason := fmt.Sprintf(
-		"local version %s (versionCode %d) is not ahead of Play track %q (latest %s, versionCode %d)",
-		local.Raw, local.Code, track, out.Store, store.VersionCode)
+		"local version %s (versionCode %d) is not ahead of Play (latest %s, versionCode %d on track %q)",
+		local.Raw, local.Code, out.Store, maxStoreVC, maxStoreTrack)
 	if local.Code == 0 {
 		reason = fmt.Sprintf(
 			"local version %s has no +build (versionCode); Play track %q already has versionCode %d",
-			local.Raw, track, store.VersionCode)
+			local.Raw, maxStoreTrack, maxStoreVC)
 	}
 
 	bumpFn := opts.BumpPast
@@ -123,7 +130,7 @@ func EnsurePlayVersionAhead(opts PlayVersionOpts) (PlayVersionResult, error) {
 	}
 
 	if opts.Yes {
-		res, berr := bumpFn(root, store.VersionCode, opts.DryRun)
+		res, berr := bumpFn(root, maxStoreVC, opts.DryRun)
 		if berr != nil {
 			return out, berr
 		}
@@ -145,7 +152,7 @@ func EnsurePlayVersionAhead(opts PlayVersionOpts) (PlayVersionResult, error) {
 	}
 	q := fmt.Sprintf(
 		"Play track %q already has %s (versionCode %d).\nLocal is %s (versionCode %d).\nBump patch + versionCode past the store and continue? [y/N]: ",
-		track, out.Store, store.VersionCode, local.Raw, local.Code)
+		maxStoreTrack, out.Store, maxStoreVC, local.Raw, local.Code)
 	ans, perr := prompt(q)
 	if perr != nil {
 		return out, ternerrors.WrapHint(ternerrors.ClassUpload, "version bump prompt failed", hint, perr)
@@ -156,7 +163,7 @@ func EnsurePlayVersionAhead(opts PlayVersionOpts) (PlayVersionResult, error) {
 			"upload canceled: local versionCode must be greater than Play's",
 			hint)
 	}
-	res, berr := bumpFn(root, store.VersionCode, opts.DryRun)
+	res, berr := bumpFn(root, maxStoreVC, opts.DryRun)
 	if berr != nil {
 		return out, berr
 	}
