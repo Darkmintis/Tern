@@ -92,6 +92,14 @@ const gitignoreExtras = `
 secrets/
 `
 
+const releaseNotesTemplate = `# Release Notes
+
+<!-- Write release notes for the next version below. -->
+<!-- Tern reads this file during upload and clears it after a successful release. -->
+<!-- Use one line per entry. Markdown is supported. -->
+
+`
+
 // Result of init.
 type Result struct {
 	Adapter    string
@@ -171,17 +179,17 @@ func RenderTernfile(d Detected) string {
 		b.WriteString("  bump version patch\n")
 		b.WriteString("  sign android with keystore env:ANDROID_KEYSTORE\n")
 		b.WriteString("  build android release\n")
-		b.WriteString("  upload android to play_store track:internal release_name:version_build\n")
+		b.WriteString("  upload android to play_store track:internal release_name:version_build notes:file:RELEASE.md\n")
 		b.WriteString("  tag git prefix:v\n\n")
 		b.WriteString("# Production (CI: tern run release_prod --yes)\n")
 		b.WriteString("lane release_prod:\n")
 		b.WriteString("  bump version patch\n")
 		b.WriteString("  sign android with keystore env:ANDROID_KEYSTORE\n")
 		b.WriteString("  build android release\n")
-		b.WriteString("  upload android to play_store track:production rollout:10 release_name:version_build\n")
+		b.WriteString("  upload android to play_store track:production rollout:10 release_name:version_build notes:file:RELEASE.md\n")
 		b.WriteString("  tag git prefix:v\n\n")
 		b.WriteString("lane ship_android:\n")
-		b.WriteString("  ship android from last to play_store track:internal\n\n")
+		b.WriteString("  ship android from last to play_store track:internal notes:file:RELEASE.md\n\n")
 	}
 
 	if hasI {
@@ -189,7 +197,7 @@ func RenderTernfile(d Detected) string {
 		b.WriteString("  bump version patch\n")
 		b.WriteString("  sign ios with cert env:IOS_CERT\n")
 		b.WriteString("  build ios release\n")
-		b.WriteString("  upload ios to testflight\n")
+		b.WriteString("  upload ios to testflight notes:file:RELEASE.md\n")
 		b.WriteString("  tag git prefix:v\n\n")
 	}
 
@@ -200,8 +208,8 @@ func RenderTernfile(d Detected) string {
 		b.WriteString("  sign ios with cert env:IOS_CERT\n")
 		b.WriteString("  build android release\n")
 		b.WriteString("  build ios release\n")
-		b.WriteString("  upload android to play_store track:internal\n")
-		b.WriteString("  upload ios to testflight\n")
+		b.WriteString("  upload android to play_store track:internal notes:file:RELEASE.md\n")
+		b.WriteString("  upload ios to testflight notes:file:RELEASE.md\n")
 		b.WriteString("  tag git prefix:v\n")
 	}
 
@@ -277,6 +285,14 @@ func Run(projectRoot string, reg *adapter.Registry, writeWorkflow bool) (Result,
 		}
 		res.EnvExample = envPath
 		res.Created = append(res.Created, envPath)
+	}
+
+	releasePath := filepath.Join(projectRoot, "RELEASE.md")
+	if _, err := os.Stat(releasePath); err != nil {
+		if err := os.WriteFile(releasePath, []byte(releaseNotesTemplate), 0o644); err != nil {
+			return res, ternerrors.Wrap(ternerrors.ClassConfig, "writing RELEASE.md", err)
+		}
+		res.Created = append(res.Created, releasePath)
 	}
 
 	_ = os.MkdirAll(filepath.Join(projectRoot, "secrets"), 0o755)
