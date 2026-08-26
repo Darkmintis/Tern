@@ -72,7 +72,7 @@ func (e *Engine) runBuild(
 		ArtifactKind: kind,
 		Flavor:       step.Flavor,
 		Scheme:       step.Scheme,
-		SkipPubGet:   skipPub && !opts.DryRun,
+		SkipPubGet:   false,
 		Clean:        opts.Clean,
 		DryRun:       opts.DryRun,
 	})
