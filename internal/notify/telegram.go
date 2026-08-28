@@ -96,7 +96,9 @@ func (t *TelegramNotifier) Send(ctx context.Context, text string, buttons ...[]I
 	if err != nil {
 		return ternerrors.Wrap(ternerrors.ClassConfig, "send telegram message", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)

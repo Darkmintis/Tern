@@ -78,7 +78,7 @@ func TestSend_Success(t *testing.T) {
 			t.Error("expected non-empty text")
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"ok": true}`))
+		_, _ = w.Write([]byte(`{"ok": true}`))
 	}))
 	defer server.Close()
 

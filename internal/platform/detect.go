@@ -247,21 +247,21 @@ func AutoConfigure() {
 	// Auto-detect ANDROID_HOME
 	if os.Getenv("ANDROID_HOME") == "" {
 		if sdk := DetectANDROIDHOME(); sdk != "" {
-			os.Setenv("ANDROID_HOME", sdk)
+			_ = os.Setenv("ANDROID_HOME", sdk)
 		}
 	}
 
 	// Auto-detect JAVA_HOME
 	if os.Getenv("JAVA_HOME") == "" {
 		if jdk := DetectJAVAHOME(); jdk != "" {
-			os.Setenv("JAVA_HOME", jdk)
+			_ = os.Setenv("JAVA_HOME", jdk)
 		}
 	}
 
 	// Auto-detect FLUTTER_ROOT
 	if os.Getenv("FLUTTER_ROOT") == "" && os.Getenv("FLUTTER_HOME") == "" {
 		if flutter := DetectFLUTTERHOME(); flutter != "" {
-			os.Setenv("FLUTTER_ROOT", flutter)
+			_ = os.Setenv("FLUTTER_ROOT", flutter)
 		}
 	}
 }

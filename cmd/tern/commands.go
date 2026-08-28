@@ -330,8 +330,8 @@ func cmdStatus(g *globalFlags) *cobra.Command {
 			}
 
 			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintf(tw, "LOCAL\t%s (build %s)\n", versionStr, buildStr)
-			fmt.Fprintln(tw)
+			_, _ = fmt.Fprintf(tw, "LOCAL\t%s (build %s)\n", versionStr, buildStr)
+			_, _ = fmt.Fprintln(tw)
 
 			tracks := map[string]*history.Record{}
 			for i := len(h.Releases) - 1; i >= 0; i-- {
@@ -343,7 +343,7 @@ func cmdStatus(g *globalFlags) *cobra.Command {
 			}
 
 			if len(tracks) == 0 {
-				fmt.Fprintln(tw, "TRACKS\tno releases recorded yet")
+				_, _ = fmt.Fprintln(tw, "TRACKS\tno releases recorded yet")
 			} else {
 				keys := make([]string, 0, len(tracks))
 				for k := range tracks {
@@ -352,13 +352,13 @@ func cmdStatus(g *globalFlags) *cobra.Command {
 				sort.Strings(keys)
 				for _, k := range keys {
 					r := tracks[k]
-					ago := timeSince(r.ReleasedAt)
-					fmt.Fprintf(tw, "%s:%s\tv%s+%d\t%s ago\n", r.Platform, r.Track, r.Version, r.Build, ago)
-				}
+				ago := timeSince(r.ReleasedAt)
+				_, _ = fmt.Fprintf(tw, "%s:%s\tv%s+%d\t%s ago\n", r.Platform, r.Track, r.Version, r.Build, ago)
 			}
-			tw.Flush()
-			return nil
-		},
+		}
+		_ = tw.Flush()
+		return nil
+	},
 	}
 }
 
@@ -390,18 +390,18 @@ func cmdHistory(g *globalFlags) *cobra.Command {
 				return nil
 			}
 			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(tw, "VERSION\tPLATFORM\tTRACK\tRELEASED\tARTIFACT")
+			_, _ = fmt.Fprintln(tw, "VERSION\tPLATFORM\tTRACK\tRELEASED\tARTIFACT")
 			for i := len(h.Releases) - 1; i >= 0; i-- {
 				r := h.Releases[i]
 				artifact := r.ArtifactPath
 				if len(artifact) > 40 {
 					artifact = "..." + artifact[len(artifact)-37:]
 				}
-				fmt.Fprintf(tw, "v%s+%d\t%s\t%s\t%s\t%s\n",
+				_, _ = fmt.Fprintf(tw, "v%s+%d\t%s\t%s\t%s\t%s\n",
 					r.Version, r.Build, r.Platform, r.Track,
 					r.ReleasedAt.Format("2006-01-02 15:04"), artifact)
 			}
-			tw.Flush()
+			_ = tw.Flush()
 			return nil
 		},
 	}
@@ -434,7 +434,7 @@ func listArtifacts(root string) error {
 		return err
 	}
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "PLATFORM\tVERSION\tSIZE\tBUILT\tARTIFACT")
+	_, _ = fmt.Fprintln(tw, "PLATFORM\tVERSION\tSIZE\tBUILT\tARTIFACT")
 	count := 0
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
@@ -457,7 +457,7 @@ func listArtifacts(root string) error {
 		if parts := strings.SplitN(version, "+", 2); len(parts) == 2 {
 			version = parts[0] + "+" + parts[1]
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 			rec.Platform, version, size,
 			rec.BuiltAt.Format("2006-01-02 15:04"), artifact)
 		count++
@@ -466,7 +466,7 @@ func listArtifacts(root string) error {
 		fmt.Println("no artifacts saved yet")
 		return nil
 	}
-	tw.Flush()
+	_ = tw.Flush()
 	return nil
 }
 
@@ -491,11 +491,11 @@ func cleanArtifacts(root string) error {
 			if err == nil {
 				var rec artifacts.Record
 				if err := json.Unmarshal(data, &rec); err == nil {
-					os.Remove(rec.Path)
+					_ = os.Remove(rec.Path)
 				}
 			}
 		}
-		os.Remove(path)
+		_ = os.Remove(path)
 		removed++
 	}
 	if removed == 0 {

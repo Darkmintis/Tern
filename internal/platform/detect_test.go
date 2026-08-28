@@ -156,9 +156,11 @@ func TestWindowsPaths(t *testing.T) {
 	expected := filepath.Join(home, "AppData", "Local", "Android", "Sdk")
 
 	// Create the directory to simulate Windows SDK
-	os.MkdirAll(expected, 0o755)
-	os.MkdirAll(filepath.Join(expected, "platforms"), 0o755)
-	defer os.RemoveAll(filepath.Join(home, "AppData", "Local", "Android"))
+	_ = os.MkdirAll(expected, 0o755)
+	_ = os.MkdirAll(filepath.Join(expected, "platforms"), 0o755)
+	defer func() {
+		_ = os.RemoveAll(filepath.Join(home, "AppData", "Local", "Android"))
+	}()
 
 	t.Setenv("ANDROID_HOME", "")
 	t.Setenv("ANDROID_SDK_ROOT", "")

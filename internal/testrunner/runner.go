@@ -83,21 +83,21 @@ func parseTestOutput(testOutput string) Result {
 		}
 		// Parse "X passed, Y failed, Z skipped" in one line
 		if strings.Contains(line, "passed") && strings.Contains(line, "failed") {
-			fmt.Sscanf(line, "%d passed, %d failed", &result.Passed, &result.Failed)
+			_, _ = fmt.Sscanf(line, "%d passed, %d failed", &result.Passed, &result.Failed)
 			if strings.Contains(line, "skipped") {
-				fmt.Sscanf(line, "%d passed, %d failed, %d skipped", &result.Passed, &result.Failed, &result.Skipped)
+				_, _ = fmt.Sscanf(line, "%d passed, %d failed, %d skipped", &result.Passed, &result.Failed, &result.Skipped)
 			}
 			continue
 		}
 		// Parse individual values
 		if strings.Contains(line, "passed") && !strings.Contains(line, "failed") {
-			fmt.Sscanf(line, "%d passed", &result.Passed)
+			_, _ = fmt.Sscanf(line, "%d passed", &result.Passed)
 		}
 		if strings.Contains(line, "failed") && !strings.Contains(line, "passed") {
-			fmt.Sscanf(line, "%d failed", &result.Failed)
+			_, _ = fmt.Sscanf(line, "%d failed", &result.Failed)
 		}
 		if strings.Contains(line, "skipped") {
-			fmt.Sscanf(line, "%d skipped", &result.Skipped)
+			_, _ = fmt.Sscanf(line, "%d skipped", &result.Skipped)
 		}
 	}
 	return result

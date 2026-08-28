@@ -85,16 +85,6 @@ func createAppStoreApp(ctx context.Context, opts CreateOptions, em *output.Emitt
 		}
 	}
 
-	username := opts.Username
-	if username == "" {
-		username = os.Getenv("APPLE_USERNAME")
-	}
-	if username == "" {
-		if v, err := secrets.ResolveEnv("APPLE_USERNAME"); err == nil {
-			username = v
-		}
-	}
-
 	apiKeyPath := os.Getenv("APPLE_API_KEY_PATH")
 	if apiKeyPath == "" {
 		if v, err := secrets.ResolveEnv("APPLE_API_KEY_PATH"); err == nil {

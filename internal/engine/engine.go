@@ -444,7 +444,7 @@ func (e *Engine) recordRelease(root, laneName string, step config.Step, artPath 
 	build := 0
 	if len(parts) == 2 {
 		version = parts[0]
-		fmt.Sscanf(parts[1], "%d", &build)
+		_, _ = fmt.Sscanf(parts[1], "%d", &build)
 	}
 	rec := history.Record{
 		Version:      version,
