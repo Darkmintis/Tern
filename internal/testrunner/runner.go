@@ -75,11 +75,25 @@ func parseTestOutput(testOutput string) Result {
 	lines := strings.Split(testOutput, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		// Flutter test output: "X tests passed, Y failed, Z skipped"
-		if strings.Contains(line, "tests passed") || strings.Contains(line, "All tests passed") {
+		// Flutter test output: "42 tests passed, 0 failed, 2 skipped"
+		// or: "All tests passed!"
+		if strings.Contains(line, "All tests passed") {
+			result.Passed = 1
+			continue
+		}
+		// Parse "X passed, Y failed, Z skipped" in one line
+		if strings.Contains(line, "passed") && strings.Contains(line, "failed") {
+			fmt.Sscanf(line, "%d passed, %d failed", &result.Passed, &result.Failed)
+			if strings.Contains(line, "skipped") {
+				fmt.Sscanf(line, "%d passed, %d failed, %d skipped", &result.Passed, &result.Failed, &result.Skipped)
+			}
+			continue
+		}
+		// Parse individual values
+		if strings.Contains(line, "passed") && !strings.Contains(line, "failed") {
 			fmt.Sscanf(line, "%d passed", &result.Passed)
 		}
-		if strings.Contains(line, "failed") {
+		if strings.Contains(line, "failed") && !strings.Contains(line, "passed") {
 			fmt.Sscanf(line, "%d failed", &result.Failed)
 		}
 		if strings.Contains(line, "skipped") {
