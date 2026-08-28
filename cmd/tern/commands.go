@@ -352,13 +352,13 @@ func cmdStatus(g *globalFlags) *cobra.Command {
 				sort.Strings(keys)
 				for _, k := range keys {
 					r := tracks[k]
-				ago := timeSince(r.ReleasedAt)
-				_, _ = fmt.Fprintf(tw, "%s:%s\tv%s+%d\t%s ago\n", r.Platform, r.Track, r.Version, r.Build, ago)
+					ago := timeSince(r.ReleasedAt)
+					_, _ = fmt.Fprintf(tw, "%s:%s\tv%s+%d\t%s ago\n", r.Platform, r.Track, r.Version, r.Build, ago)
+				}
 			}
-		}
-		_ = tw.Flush()
-		return nil
-	},
+			_ = tw.Flush()
+			return nil
+		},
 	}
 }
 
