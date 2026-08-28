@@ -132,7 +132,7 @@ Setup steps:
 6. Note the Key ID and Team ID
 
 Then set environment variables:
-  APPLE_TEAM_ID=%s
+  APPLE_TEAM_ID=your-team-id
   APPLE_API_KEY_PATH=secrets/AuthKey_XXXXXXXX.p8
 
 Or create the app manually:
