@@ -28,6 +28,7 @@ const (
 	StepTag       StepKind = "tag"
 	StepSyncCerts StepKind = "sync_certs"
 	StepNotify    StepKind = "notify"
+	StepTest      StepKind = "test"
 )
 
 // ArtifactKind is the binary format for a build (android: aab default, apk optional).
@@ -86,7 +87,9 @@ type Step struct {
 	// SyncAction is pull or push.
 	SyncAction string
 	NotifyVia  string
-	Raw        string // original line for logging
+	// Test command (e.g., "flutter test", "dart test", custom command)
+	TestCommand string
+	Raw         string // original line for logging
 }
 
 // Lane is a named sequence of steps.

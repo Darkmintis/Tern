@@ -81,6 +81,8 @@ func parseStep(line string) (Step, error) {
 		return parseSyncCerts(parts)
 	case "notify":
 		return parseNotify(parts)
+	case "test":
+		return parseTest(parts)
 	default:
 		return Step{}, ternerrors.New(ternerrors.ClassConfig, fmt.Sprintf("unknown step kind %q", parts[0]))
 	}
@@ -263,17 +265,32 @@ func parseSyncCerts(parts []string) (Step, error) {
 func parseNotify(parts []string) (Step, error) {
 	// notify slack env:SLACK_WEBHOOK
 	if len(parts) < 3 {
-		return Step{}, ternerrors.New(ternerrors.ClassConfig, "notify requires: notify <slack|discord> env:NAME")
+		return Step{}, ternerrors.New(ternerrors.ClassConfig, "notify requires: notify <slack|discord|telegram> env:NAME")
 	}
 	via := parts[1]
-	if via != "slack" && via != "discord" {
-		return Step{}, ternerrors.New(ternerrors.ClassConfig, "notify: expected slack or discord")
+	if via != "slack" && via != "discord" && via != "telegram" {
+		return Step{}, ternerrors.New(ternerrors.ClassConfig, "notify: expected slack, discord, or telegram")
 	}
 	envRef, err := parseEnvRef(parts[2])
 	if err != nil {
 		return Step{}, err
 	}
 	return Step{Kind: StepNotify, NotifyVia: via, EnvRef: envRef}, nil
+}
+
+func parseTest(parts []string) (Step, error) {
+	// test
+	// test command:"flutter test"
+	s := Step{Kind: StepTest}
+	for _, extra := range parts[1:] {
+		if v, ok := kvPrefix(extra, "command"); ok {
+			if v == "" {
+				return Step{}, ternerrors.New(ternerrors.ClassConfig, "command: requires a value")
+			}
+			s.TestCommand = v
+		}
+	}
+	return s, nil
 }
 
 func parsePlatform(s string) (Platform, error) {
