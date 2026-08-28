@@ -1,95 +1,173 @@
-# Play credentials setup
+# Play Store Setup
 
-One-time setup so Tern can sign Android builds and upload to Google Play.  
-You do this in a browser; Tern only **reads** the files via env vars.
+Set up Tern to upload Android builds to Google Play Console.
 
-## Checklist
+## Prerequisites
 
-- [ ] App exists in [Play Console](https://play.google.com/console)
-- [ ] Upload keystore (`.jks` / `.keystore`)
-- [ ] Play API service-account JSON
-- [ ] Service account invited to the app in Play Console
-- [ ] Paths set in `.env` (from `.env.example`)
+- **App created** in [Play Console](https://play.google.com/console)
+- **Google Cloud project** linked to Play Console
+- **Service account** with Play API access
 
----
+## Quick Setup (10 minutes)
 
-## A. Upload keystore
+### 1. Create Upload Keystore
 
-If you already ship with a keystore, reuse it. Otherwise create one:
+If you don't have a keystore:
 
 ```bash
-keytool -genkey -v -keystore secrets/upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+keytool -genkey -v \
+  -keystore secrets/upload.jks \
+  -keyalg RSA -keysize 2048 \
+  -validity 10000 \
+  -alias upload
 ```
 
-Put the file in `secrets/` (gitignored). Set in `.env`:
+Save as `secrets/upload.jks`
+
+### 2. Create Service Account
+
+1. Go to [Play Console](https://play.google.com/console) → **Setup → API access**
+2. Click **Create new project** or **Link existing project**
+3. Click **Create service account**
+4. Service account name: `tern-release`
+5. Role: **Service Account User**
+6. Copy the JSON key file to `secrets/play.json`
+
+### 3. Grant Permissions
+
+1. Back in Play Console → **API access**
+2. Find your service account → **Grant access**
+3. Add these permissions:
+   - ✅ **Release apps to testing tracks** (internal, alpha, beta)
+   - ✅ **Release to production** (optional, for production uploads)
+
+### 4. Configure Tern
+
+Add to `.env`:
 
 ```bash
-ANDROID_KEYSTORE=secrets/upload.jks          # or an absolute path
-ANDROID_KEYSTORE_PASSWORD=…
+# Keystore
+ANDROID_KEYSTORE=secrets/upload.jks
+ANDROID_KEYSTORE_PASSWORD=your-keystore-password
 ANDROID_KEY_ALIAS=upload
-ANDROID_KEY_PASSWORD=…
-```
+ANDROID_KEY_PASSWORD=your-key-password
 
-Your Flutter `android/app/build.gradle` must load `key.properties` (Flutter’s usual release template). Tern’s `sign` step writes that file from these env vars.
-
----
-
-## B. Play service account (API access)
-
-1. Open **Play Console** → your developer account → **Setup → API access**  
-   (wording may vary slightly; look for “API access” / service accounts).
-2. Link a Google Cloud project if prompted.
-3. Create or choose a **service account**.
-4. In Google Cloud → IAM → that service account → **Keys → Add key → JSON**.  
-   Save as `secrets/play.json`.
-5. Back in Play Console, **grant the service account access** to your app  
-   (at least permission to manage releases / testing tracks).
-6. Set:
-
-```bash
+# Play Console
 GOOGLE_APPLICATION_CREDENTIALS=secrets/play.json
 ```
 
-Optional if package detection fails:
+### 5. Test
 
 ```bash
-ANDROID_PACKAGE_NAME=com.your.package
+tern doctor  # Should show all green
+tern run release_internal --dry-run  # Preview what would happen
 ```
 
----
+## How It Works
 
-## C. Create the app + internal track (one-time)
+When you run `tern release_internal`:
 
-1. In Play Console: **Create app** (or open an existing one).
-2. Package name / `applicationId` must match your Flutter Android app.
-3. Complete any required Console setup forms if Google asks (store listing drafts, declarations, etc.). You only need enough for **testing** uploads to work — not a full public launch.
-4. Tern uploads to `track:internal` by default. You do **not** need to manually drag-and-drop an AAB first in most cases — Tern’s first `tern release` can create the internal release via the API.
+1. **Bump version** — Increment patch version in `pubspec.yaml`
+2. **Sign** — Write `android/key.properties` from env vars
+3. **Build** — `flutter build appbundle --release`
+4. **Validate** — Check version code is ahead of Play
+5. **Upload** — Send AAB to Play Console via API
+6. **Tag** — Create git tag `v1.2.3`
 
-After a successful upload: **Testing → Internal testing** to see the build and install via Play (optional).
+## Environment Variables
 
-Tern does **not** need a special “enable automation” switch beyond API access + app permissions.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANDROID_KEYSTORE` | ✅ | Path to `.jks` keystore file |
+| `ANDROID_KEYSTORE_PASSWORD` | ✅ | Keystore password |
+| `ANDROID_KEY_ALIAS` | ✅ | Key alias (usually `upload`) |
+| `ANDROID_KEY_PASSWORD` | ✅ | Key password |
+| `GOOGLE_APPLICATION_CREDENTIALS` | ✅ | Path to service account JSON |
+| `ANDROID_PACKAGE_NAME` | ❌ | App package ID (auto-detected) |
 
----
+## CI Setup (GitHub Actions)
 
-## D. Verify
+### Option A: Base64 encoded keystore
+
+Add secrets:
+```
+ANDROID_KEYSTORE_BASE64=<base64 of upload.jks>
+ANDROID_KEYSTORE_PASSWORD=your-password
+ANDROID_KEY_ALIAS=upload
+ANDROID_KEY_PASSWORD=your-password
+GOOGLE_APPLICATION_CREDENTIALS_PATH=secrets/play.json
+```
+
+Encode keystore:
+```bash
+base64 -i secrets/upload.jks | pbcopy
+```
+
+### Option B: Use gh secret set
 
 ```bash
-set -a && source .env && set +a
-tern doctor
-tern release --dry-run
+gh secret set ANDROID_KEYSTORE < secrets/upload.jks
+gh secret set ANDROID_KEYSTORE_PASSWORD
+gh secret set ANDROID_KEY_ALIAS
+gh secret set ANDROID_KEY_PASSWORD
+gh secret set GOOGLE_APPLICATION_CREDENTIALS < secrets/play.json
 ```
 
-When doctor is green, run `tern release` for a real **internal** upload.
+## Track Configuration
 
----
+| Track | Command | Description |
+|-------|---------|-------------|
+| Internal | `track:internal` | Default, for testing |
+| Alpha | `track:alpha` | Limited testing |
+| Beta | `track:beta` | Wider testing |
+| Production | `track:production` | Public release |
 
-## Common failures
+### Staged Rollout
+
+```bash
+# 10% rollout
+tern run release_prod --yes
+# or
+tern upload android to play_store track:production rollout:10
+```
+
+## Version Code Rules
+
+- Play Console requires each upload to have a **higher** version code
+- Tern checks this before upload and warns if behind
+- Use `bump version build` to increment only the version code
+
+## Common Issues
 
 | Problem | Fix |
-|---|---|
-| missing `GOOGLE_APPLICATION_CREDENTIALS` | Path to the JSON file |
-| 403 / permission denied | Invite the service account on the app in Play Console |
-| package not found | App not created yet, or wrong `applicationId` / `ANDROID_PACKAGE_NAME` |
-| unsigned release | Run `sign android` before build; fix keystore env |
+|---------|-----|
+| "403 Permission denied" | Grant service account access in Play Console |
+| "Version code too low" | Bump version code higher than current Play version |
+| "Package not found" | App not created yet, or wrong `applicationId` |
+| "Invalid keystore" | Check keystore path and password |
+| "Service account not found" | Re-download JSON from Google Cloud IAM |
 
-More: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+## Verification
+
+```bash
+# Full check
+tern doctor
+
+# Dry-run
+tern run release_internal --dry-run
+
+# Real release
+tern run release_internal
+```
+
+## Production Release
+
+```bash
+# First: release to internal
+tern run release_internal
+
+# Then: promote to production
+tern promote internal production
+# or
+tern run release_prod --yes
+```
