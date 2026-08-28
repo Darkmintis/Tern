@@ -16,9 +16,11 @@ import (
 	"github.com/darkmintis/Tern/internal/config"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	"github.com/darkmintis/Tern/internal/history"
+	"github.com/darkmintis/Tern/internal/notify"
 	"github.com/darkmintis/Tern/internal/output"
 	"github.com/darkmintis/Tern/internal/projectmeta"
 	"github.com/darkmintis/Tern/internal/signing"
+	"github.com/darkmintis/Tern/internal/testrunner"
 	"github.com/darkmintis/Tern/internal/upload"
 	"golang.org/x/sync/errgroup"
 )
@@ -348,10 +350,31 @@ func (e *Engine) runStep(
 		if opts.DryRun {
 			msg = fmt.Sprintf("dry-run: would notify %s via env:%s", step.NotifyVia, step.EnvRef)
 		} else {
-			err = ternerrors.NewHint(ternerrors.ClassConfig,
-				"notify is reserved and not implemented yet",
-				"remove notify from your Ternfile or wait for a later Tern release")
+			if step.NotifyVia == "telegram" {
+				t, terr := notify.NewTelegram()
+				if terr != nil {
+					err = terr
+				} else {
+					version, _ := projectmeta.FlutterVersion(root)
+					if terr := t.Send(ctx, fmt.Sprintf("📦 <b>Tern Release</b>\n\nVersion: %s\nLane: %s\nStatus: completed", version, laneName)); terr != nil {
+						err = terr
+					} else {
+						msg = "notification sent to Telegram"
+					}
+				}
+			} else {
+				err = ternerrors.NewHint(ternerrors.ClassConfig,
+					"unsupported notify channel: "+step.NotifyVia,
+					"supported channels: telegram")
+			}
 		}
+	case config.StepTest:
+		res, terr := testrunner.Run(ctx, testrunner.Options{
+			ProjectRoot: root,
+			Command:     step.TestCommand,
+		}, em)
+		err = terr
+		msg = res.Message
 	default:
 		err = ternerrors.New(ternerrors.ClassConfig, "unsupported step: "+string(step.Kind))
 	}
