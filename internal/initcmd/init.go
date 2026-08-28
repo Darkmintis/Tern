@@ -17,7 +17,10 @@ on:
   workflow_dispatch:
 jobs:
   release:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [android, ios]
+    runs-on: ${{ matrix.platform == 'ios' && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -33,6 +36,7 @@ jobs:
           restore-keys: |
             tern-pub-${{ runner.os }}-
       - name: Cache Gradle
+        if: matrix.platform == 'android'
         uses: actions/cache@v4
         with:
           path: |
@@ -43,22 +47,29 @@ jobs:
           restore-keys: |
             tern-gradle-${{ runner.os }}-
       - name: Decode Android keystore
+        if: matrix.platform == 'android'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
           echo "ANDROID_KEYSTORE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
-      - run: tern doctor
+      - name: Release Android
+        if: matrix.platform == 'android'
+        run: tern run release_internal
         env:
           ANDROID_KEYSTORE: ${{ env.ANDROID_KEYSTORE }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_PATH }}
-      - run: tern release --dry-run
-      # - run: tern release
-      # On upload failure without code changes: tern ship last --to play_store
-      # Production: tern run release_prod --yes
+      - name: Release iOS
+        if: matrix.platform == 'ios'
+        run: tern run release_ios
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
 `
 
 const envExampleAndroid = `# Copy to .env and fill in. Do NOT commit .env or secrets/.
