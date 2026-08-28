@@ -61,6 +61,7 @@ func newRoot() *cobra.Command {
 	root.AddCommand(cmdHistory(g))
 	root.AddCommand(cmdArtifacts(g))
 	root.AddCommand(cmdRollback(g, reg))
+	root.AddCommand(cmdCreate(g))
 
 	return root
 }

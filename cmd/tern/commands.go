@@ -20,6 +20,7 @@ import (
 	initcmd "github.com/darkmintis/Tern/internal/initcmd"
 	"github.com/darkmintis/Tern/internal/projectmeta"
 	"github.com/darkmintis/Tern/internal/releasemeta"
+	"github.com/darkmintis/Tern/internal/store"
 	"github.com/darkmintis/Tern/internal/upload"
 	"github.com/darkmintis/Tern/internal/validate"
 	"github.com/darkmintis/Tern/internal/version"
@@ -516,6 +517,42 @@ func formatSize(b int64) string {
 	default:
 		return fmt.Sprintf("%dB", b)
 	}
+}
+
+func cmdCreate(g *globalFlags) *cobra.Command {
+	var appName, packageName, teamID, username, platform string
+	c := &cobra.Command{
+		Use:   "create",
+		Short: "Create a new app on Play Store or App Store Connect",
+		Example: `  tern create --platform android --app-name "My App" --package com.example.myapp
+  tern create --platform ios --app-name "My App" --package com.example.myapp --team-id ABC123`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := config.Platform(platform)
+			if p == "" {
+				p = config.PlatformAndroid
+			}
+			res, err := store.CreateApp(context.Background(), store.CreateOptions{
+				Platform:    p,
+				ProjectRoot: g.dir,
+				AppName:     appName,
+				PackageName: packageName,
+				TeamID:      teamID,
+				Username:    username,
+				DryRun:      g.dryRun,
+			}, emitter(g))
+			if err != nil {
+				return err
+			}
+			fmt.Println(res.Message)
+			return nil
+		},
+	}
+	c.Flags().StringVar(&platform, "platform", "android", "android|ios")
+	c.Flags().StringVar(&appName, "app-name", "", "app display name")
+	c.Flags().StringVar(&packageName, "package", "", "bundle ID (com.example.app)")
+	c.Flags().StringVar(&teamID, "team-id", "", "Apple Team ID (iOS only)")
+	c.Flags().StringVar(&username, "username", "", "Apple username (iOS only)")
+	return c
 }
 
 func cmdRollback(g *globalFlags, reg *adapter.Registry) *cobra.Command {
