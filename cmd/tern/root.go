@@ -57,6 +57,10 @@ func newRoot() *cobra.Command {
 	root.AddCommand(cmdPromote(g))
 	root.AddCommand(cmdNotes(g))
 	root.AddCommand(cmdCache())
+	root.AddCommand(cmdStatus(g))
+	root.AddCommand(cmdHistory(g))
+	root.AddCommand(cmdArtifacts(g))
+	root.AddCommand(cmdRollback(g, reg))
 
 	return root
 }

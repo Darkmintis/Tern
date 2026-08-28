@@ -6,13 +6,19 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
+	"text/tabwriter"
+	"time"
 
 	"github.com/darkmintis/Tern/internal/adapter"
+	"github.com/darkmintis/Tern/internal/artifacts"
 	"github.com/darkmintis/Tern/internal/cache"
 	"github.com/darkmintis/Tern/internal/config"
 	"github.com/darkmintis/Tern/internal/doctor"
 	"github.com/darkmintis/Tern/internal/engine"
+	"github.com/darkmintis/Tern/internal/history"
 	initcmd "github.com/darkmintis/Tern/internal/initcmd"
+	"github.com/darkmintis/Tern/internal/projectmeta"
 	"github.com/darkmintis/Tern/internal/releasemeta"
 	"github.com/darkmintis/Tern/internal/upload"
 	"github.com/darkmintis/Tern/internal/validate"
@@ -297,6 +303,291 @@ func cmdNotes(g *globalFlags) *cobra.Command {
 	c.Flags().StringVar(&notes, "notes", "", "default|none|literal text")
 	c.Flags().StringVar(&notesFile, "notes-file", "", "path to release notes file")
 	c.Flags().StringVar(&notesLocale, "notes-locale", "", "notes locale (default en-US)")
+	return c
+}
+
+func cmdStatus(g *globalFlags) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show local version vs last releases on each track",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			local, err := projectmeta.FlutterVersion(g.dir)
+			if err != nil {
+				local = "unknown"
+			}
+			parts := strings.SplitN(local, "+", 2)
+			versionStr := local
+			buildStr := ""
+			if len(parts) == 2 {
+				versionStr = parts[0]
+				buildStr = parts[1]
+			}
+
+			h, herr := history.Load(g.dir)
+			if herr != nil {
+				h = history.History{}
+			}
+
+			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintf(tw, "LOCAL\t%s (build %s)\n", versionStr, buildStr)
+			fmt.Fprintln(tw)
+
+			tracks := map[string]*history.Record{}
+			for i := len(h.Releases) - 1; i >= 0; i-- {
+				r := h.Releases[i]
+				key := string(r.Platform) + ":" + r.Track
+				if _, ok := tracks[key]; !ok {
+					tracks[key] = &r
+				}
+			}
+
+			if len(tracks) == 0 {
+				fmt.Fprintln(tw, "TRACKS\tno releases recorded yet")
+			} else {
+				keys := make([]string, 0, len(tracks))
+				for k := range tracks {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, k := range keys {
+					r := tracks[k]
+					ago := timeSince(r.ReleasedAt)
+					fmt.Fprintf(tw, "%s:%s\tv%s+%d\t%s ago\n", r.Platform, r.Track, r.Version, r.Build, ago)
+				}
+			}
+			tw.Flush()
+			return nil
+		},
+	}
+}
+
+func timeSince(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	}
+}
+
+func cmdHistory(g *globalFlags) *cobra.Command {
+	return &cobra.Command{
+		Use:   "history",
+		Short: "Show release history",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			h, err := history.Load(g.dir)
+			if err != nil {
+				return err
+			}
+			if len(h.Releases) == 0 {
+				fmt.Println("no releases recorded yet")
+				return nil
+			}
+			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(tw, "VERSION\tPLATFORM\tTRACK\tRELEASED\tARTIFACT")
+			for i := len(h.Releases) - 1; i >= 0; i-- {
+				r := h.Releases[i]
+				artifact := r.ArtifactPath
+				if len(artifact) > 40 {
+					artifact = "..." + artifact[len(artifact)-37:]
+				}
+				fmt.Fprintf(tw, "v%s+%d\t%s\t%s\t%s\t%s\n",
+					r.Version, r.Build, r.Platform, r.Track,
+					r.ReleasedAt.Format("2006-01-02 15:04"), artifact)
+			}
+			tw.Flush()
+			return nil
+		},
+	}
+}
+
+func cmdArtifacts(g *globalFlags) *cobra.Command {
+	var clean bool
+	c := &cobra.Command{
+		Use:   "artifacts",
+		Short: "List saved build artifacts",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if clean {
+				return cleanArtifacts(g.dir)
+			}
+			return listArtifacts(g.dir)
+		},
+	}
+	c.Flags().BoolVar(&clean, "clean", false, "remove old artifacts")
+	return c
+}
+
+func listArtifacts(root string) error {
+	dir := artifacts.Dir(root)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println("no artifacts saved yet")
+			return nil
+		}
+		return err
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "PLATFORM\tVERSION\tSIZE\tBUILT\tARTIFACT")
+	count := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(dir + "/" + e.Name())
+		if err != nil {
+			continue
+		}
+		var rec artifacts.Record
+		if err := json.Unmarshal(data, &rec); err != nil {
+			continue
+		}
+		size := formatSize(rec.SizeBytes)
+		artifact := rec.Path
+		if len(artifact) > 50 {
+			artifact = "..." + artifact[len(artifact)-47:]
+		}
+		version := rec.Version
+		if parts := strings.SplitN(version, "+", 2); len(parts) == 2 {
+			version = parts[0] + "+" + parts[1]
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+			rec.Platform, version, size,
+			rec.BuiltAt.Format("2006-01-02 15:04"), artifact)
+		count++
+	}
+	if count == 0 {
+		fmt.Println("no artifacts saved yet")
+		return nil
+	}
+	tw.Flush()
+	return nil
+}
+
+func cleanArtifacts(root string) error {
+	dir := artifacts.Dir(root)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println("nothing to clean")
+			return nil
+		}
+		return err
+	}
+	removed := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		path := dir + "/" + e.Name()
+		if strings.HasSuffix(e.Name(), ".json") {
+			data, err := os.ReadFile(path)
+			if err == nil {
+				var rec artifacts.Record
+				if err := json.Unmarshal(data, &rec); err == nil {
+					os.Remove(rec.Path)
+				}
+			}
+		}
+		os.Remove(path)
+		removed++
+	}
+	if removed == 0 {
+		fmt.Println("nothing to clean")
+	} else {
+		fmt.Printf("cleaned %d artifact(s)\n", removed)
+	}
+	return nil
+}
+
+func formatSize(b int64) string {
+	switch {
+	case b >= 1<<30:
+		return fmt.Sprintf("%.1fGB", float64(b)/(1<<30))
+	case b >= 1<<20:
+		return fmt.Sprintf("%.1fMB", float64(b)/(1<<20))
+	case b >= 1<<10:
+		return fmt.Sprintf("%.1fKB", float64(b)/(1<<10))
+	default:
+		return fmt.Sprintf("%dB", b)
+	}
+}
+
+func cmdRollback(g *globalFlags, reg *adapter.Registry) *cobra.Command {
+	var to, track, platform string
+	var rollout float64
+	c := &cobra.Command{
+		Use:   "rollback",
+		Short: "Re-upload the last built artifact to rollback a release",
+		Example: `  tern rollback                     # re-upload last artifact to internal
+  tern rollback --track production  # promote last to production
+  tern rollback --to v1.2.1         # rollback to specific version`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if rollout != 0 {
+				norm, err := config.NormalizeRollout(rollout)
+				if err != nil {
+					return err
+				}
+				rollout = norm
+			}
+			rec, err := history.Last(g.dir)
+			if err != nil {
+				return err
+			}
+			if rec == nil {
+				return fmt.Errorf("no releases recorded yet; nothing to rollback")
+			}
+			if to != "" {
+				for i := len(history.History{}.Releases) - 1; i >= 0; i-- {
+					_ = i
+				}
+				h, herr := history.Load(g.dir)
+				if herr != nil {
+					return herr
+				}
+				found := false
+				for i := len(h.Releases) - 1; i >= 0; i-- {
+					if h.Releases[i].Version == strings.TrimPrefix(to, "v") {
+						rec = &h.Releases[i]
+						found = true
+						break
+					}
+				}
+				if !found {
+					return fmt.Errorf("version %s not found in release history", to)
+				}
+			}
+			if platform == "" {
+				platform = string(rec.Platform)
+			}
+			if track == "" {
+				track = rec.Track
+			}
+			eng := engine.New(reg)
+			return eng.Ship(context.Background(), engine.ShipOptions{
+				ProjectRoot: g.dir,
+				Platform:    config.Platform(platform),
+				From:        rec.ArtifactPath,
+				Target:      rec.Target,
+				Track:       track,
+				Rollout:     rollout,
+				DryRun:      g.dryRun,
+				Force:       g.force,
+				Yes:         g.yes,
+				ReleaseSpec: releasemeta.DefaultSpec(),
+				Emitter:     emitter(g),
+			})
+		},
+	}
+	c.Flags().StringVar(&to, "to", "", "rollback to specific version (e.g. v1.2.1)")
+	c.Flags().StringVar(&track, "track", "", "target track (default: same as last release)")
+	c.Flags().StringVar(&platform, "platform", "", "android|ios (default: same as last release)")
+	c.Flags().Float64Var(&rollout, "rollout", 0, "staged rollout on target track: 10 or 0.1 for 10%%; 0 = full")
 	return c
 }
 
