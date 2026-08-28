@@ -18,6 +18,7 @@ import (
 	"github.com/darkmintis/Tern/internal/history"
 	"github.com/darkmintis/Tern/internal/notify"
 	"github.com/darkmintis/Tern/internal/output"
+	"github.com/darkmintis/Tern/internal/platform"
 	"github.com/darkmintis/Tern/internal/projectmeta"
 	"github.com/darkmintis/Tern/internal/signing"
 	"github.com/darkmintis/Tern/internal/testrunner"
@@ -62,6 +63,9 @@ func New(reg *adapter.Registry) *Engine {
 
 // RunLane executes a named lane from cfg.
 func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName string, opts Options) error {
+	// Auto-detect platform tools (ANDROID_HOME, JAVA_HOME, etc.)
+	platform.AutoConfigure()
+
 	lane, ok := cfg.Lane(laneName)
 	if !ok {
 		return ternerrors.New(ternerrors.ClassConfig, "unknown lane: "+laneName)
@@ -356,7 +360,23 @@ func (e *Engine) runStep(
 					err = terr
 				} else {
 					version, _ := projectmeta.FlutterVersion(root)
-					if terr := t.Send(ctx, fmt.Sprintf("📦 <b>Tern Release</b>\n\nVersion: %s\nLane: %s\nStatus: completed", version, laneName)); terr != nil {
+					buttons := [][]notify.InlineKeyboardButton{
+						{
+							{Text: "📊 Status", CallbackData: "tern:status"},
+							{Text: "📜 History", CallbackData: "tern:history"},
+						},
+						{
+							{Text: "🔄 Rollback", CallbackData: "tern:rollback"},
+						},
+					}
+					if terr := t.Send(ctx, fmt.Sprintf(
+						"✅ <b>Release Completed</b>\n\n"+
+							"📦 Version: %s\n"+
+							"🎯 Lane: %s\n"+
+							"🕐 Time: %s",
+						version, laneName,
+						time.Now().Format("2006-01-02 15:04:05"),
+					), buttons...); terr != nil {
 						err = terr
 					} else {
 						msg = "notification sent to Telegram"
