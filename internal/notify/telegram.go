@@ -21,10 +21,10 @@ type TelegramNotifier struct {
 
 // Message represents a Telegram message.
 type Message struct {
-	ChatID      string        `json:"chat_id"`
-	Text        string        `json:"text"`
-	ParseMode   string        `json:"parse_mode,omitempty"`
-	ReplyMarkup *ReplyMarkup  `json:"reply_markup,omitempty"`
+	ChatID      string       `json:"chat_id"`
+	Text        string       `json:"text"`
+	ParseMode   string       `json:"parse_mode,omitempty"`
+	ReplyMarkup *ReplyMarkup `json:"reply_markup,omitempty"`
 }
 
 // ReplyMarkup for inline keyboards.
@@ -107,69 +107,78 @@ func (t *TelegramNotifier) Send(ctx context.Context, text string, buttons ...[]I
 	return nil
 }
 
-// NotifyReleaseSuccess sends a success notification with action buttons.
-func NotifyReleaseSuccess(ctx context.Context, version, platform, track, projectRoot string) error {
+// NotifyReleaseSuccess sends success with emergency actions.
+func NotifyReleaseSuccess(ctx context.Context, version, platform, track string) error {
 	t, err := NewTelegram()
 	if err != nil {
 		return err
 	}
 
 	text := fmt.Sprintf(
-		"✅ <b>Release Successful</b>\n\n"+
-			"📦 Version: %s\n"+
-			"📱 Platform: %s\n"+
-			"🎯 Track: %s\n"+
-			"🕐 Time: %s",
+		"✅ <b>Release Shipped</b>\n\n"+
+			"<b>Version:</b> %s\n"+
+			"<b>Platform:</b> %s\n"+
+			"<b>Track:</b> %s\n"+
+			"<b>Time:</b> %s\n\n"+
+			"<code>tern promote %s production</code>\n"+
+			"<code>tern rollback</code>",
 		version, platform, track,
-		time.Now().Format("2006-01-02 15:04:05"),
+		time.Now().Format("15:04:05"),
+		track,
 	)
 
-	// Action buttons
 	buttons := [][]InlineKeyboardButton{
 		{
-			{Text: "📊 View Status", CallbackData: "tern:status"},
-			{Text: "📜 View History", CallbackData: "tern:history"},
+			{Text: "🚀 Promote to Production", URL: "https://telegram.me/tern-bot?start=promote_production"},
+			{Text: "⏪ Emergency Rollback", URL: "https://telegram.me/tern-bot?start=rollback"},
 		},
 		{
-			{Text: "🔄 Promote to Beta", CallbackData: fmt.Sprintf("tern:promote:%s:beta", track)},
-			{Text: "🚀 Promote to Prod", CallbackData: fmt.Sprintf("tern:promote:%s:production", track)},
-		},
-		{
-			{Text: "⏪ Rollback", CallbackData: "tern:rollback"},
+			{Text: "📊 Check Status", URL: "https://telegram.me/tern-bot?start=status"},
 		},
 	}
 
 	return t.Send(ctx, text, buttons...)
 }
 
-// NotifyReleaseFailure sends a failure notification with retry button.
+// NotifyReleaseFailure sends failure with retry and rollback.
 func NotifyReleaseFailure(ctx context.Context, version, platform, track, errMsg string) error {
 	t, err := NewTelegram()
 	if err != nil {
 		return err
 	}
 
+	// Truncate error message
+	if len(errMsg) > 200 {
+		errMsg = errMsg[:200] + "..."
+	}
+
 	text := fmt.Sprintf(
-		"❌ <b>Release Failed</b>\n\n"+
-			"📦 Version: %s\n"+
-			"📱 Platform: %s\n"+
-			"🎯 Track: %s\n"+
-			"⚠️ Error: %s\n\n"+
-			"<i>Check CI logs for details.</i>",
+		"🚨 <b>RELEASE FAILED</b>\n\n"+
+			"<b>Version:</b> %s\n"+
+			"<b>Platform:</b> %s\n"+
+			"<b>Track:</b> %s\n"+
+			"<b>Error:</b>\n<code>%s</code>\n\n"+
+			"<b>Quick fix:</b>\n"+
+			"<code>tern release_%s --force</code>\n"+
+			"<code>tern rollback</code>",
 		version, platform, track, errMsg,
+		track,
 	)
 
 	buttons := [][]InlineKeyboardButton{
 		{
-			{Text: "🔄 Retry Release", CallbackData: "tern:retry"},
-			{Text: "📜 View Logs", CallbackData: "tern:logs"},
+			{Text: "🔄 Retry Release", URL: "https://telegram.me/tern-bot?start=retry"},
+			{Text: "⏪ Rollback Now", URL: "https://telegram.me/tern-bot?start=rollback"},
+		},
+		{
+			{Text: "📜 View Full Logs", URL: "https://telegram.me/tern-bot?start=logs"},
 		},
 	}
 
 	return t.Send(ctx, text, buttons...)
 }
 
-// NotifyBuildStatus sends build progress notifications.
+// NotifyBuildStatus sends build progress.
 func NotifyBuildStatus(ctx context.Context, status, version, platform string) error {
 	t, err := NewTelegram()
 	if err != nil {
@@ -177,23 +186,56 @@ func NotifyBuildStatus(ctx context.Context, status, version, platform string) er
 	}
 
 	var emoji string
+	var extra string
 	switch status {
 	case "started":
 		emoji = "🔨"
+		extra = "Building..."
 	case "completed":
 		emoji = "✅"
+		extra = "Ready to upload"
 	case "failed":
 		emoji = "❌"
+		extra = "Check logs"
 	default:
 		emoji = "📦"
+		extra = status
 	}
 
 	text := fmt.Sprintf(
 		"%s <b>Build %s</b>\n\n"+
-			"📦 Version: %s\n"+
-			"📱 Platform: %s",
-		emoji, status, version, platform,
+			"<b>Version:</b> %s\n"+
+			"<b>Platform:</b> %s\n"+
+			"<b>Status:</b> %s",
+		emoji, status, version, platform, extra,
 	)
 
 	return t.Send(ctx, text)
+}
+
+// NotifyEmergency sends critical alerts that need immediate attention.
+func NotifyEmergency(ctx context.Context, message string) error {
+	t, err := NewTelegram()
+	if err != nil {
+		return err
+	}
+
+	text := fmt.Sprintf(
+		"🚨 <b>EMERGENCY</b>\n\n"+
+			"%s\n\n"+
+			"<b>Time:</b> %s\n"+
+			"<b>Immediate actions:</b>\n"+
+			"<code>tern rollback</code>\n"+
+			"<code>tern status</code>",
+		message,
+		time.Now().Format("15:04:05"),
+	)
+
+	buttons := [][]InlineKeyboardButton{
+		{
+			{Text: "⏪ ROLLBACK NOW", URL: "https://telegram.me/tern-bot?start=emergency_rollback"},
+		},
+	}
+
+	return t.Send(ctx, text, buttons...)
 }

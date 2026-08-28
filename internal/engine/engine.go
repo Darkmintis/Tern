@@ -194,6 +194,18 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 			})
 			em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
 			e.restorePubspec(root, savedPubspec, em, laneName)
+			// Send failure notification
+			if !opts.DryRun && (os.Getenv("TELEGRAM_BOT_TOKEN") != "" || os.Getenv("TERN_TELEGRAM_BOT_TOKEN") != "") {
+				version, _ := projectmeta.FlutterVersion(root)
+				lastRec, _ := history.Last(root)
+				track := "internal"
+				platform := "android"
+				if lastRec != nil {
+					track = lastRec.Track
+					platform = string(lastRec.Platform)
+				}
+				_ = notify.NotifyReleaseFailure(ctx, version, platform, track, err.Error())
+			}
 			return err
 		}
 		i++
@@ -202,6 +214,18 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 	em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "ok", DurationMs: time.Since(start).Milliseconds()})
 	if !opts.DryRun {
 		e.clearReleaseNotes(root, em, laneName)
+		// Send success notification if telegram is configured
+		if os.Getenv("TELEGRAM_BOT_TOKEN") != "" || os.Getenv("TERN_TELEGRAM_BOT_TOKEN") != "" {
+			version, _ := projectmeta.FlutterVersion(root)
+			lastRec, _ := history.Last(root)
+			track := "internal"
+			platform := "android"
+			if lastRec != nil {
+				track = lastRec.Track
+				platform = string(lastRec.Platform)
+			}
+			_ = notify.NotifyReleaseSuccess(ctx, version, platform, track)
+		}
 	}
 	if opts.DryRun {
 		e.restorePubspec(root, savedPubspec, em, laneName)
@@ -355,32 +379,19 @@ func (e *Engine) runStep(
 			msg = fmt.Sprintf("dry-run: would notify %s via env:%s", step.NotifyVia, step.EnvRef)
 		} else {
 			if step.NotifyVia == "telegram" {
-				t, terr := notify.NewTelegram()
-				if terr != nil {
+				version, _ := projectmeta.FlutterVersion(root)
+				// Get the last release info for context
+				lastRec, _ := history.Last(root)
+				track := "internal"
+				platform := "android"
+				if lastRec != nil {
+					track = lastRec.Track
+					platform = string(lastRec.Platform)
+				}
+				if terr := notify.NotifyReleaseSuccess(ctx, version, platform, track); terr != nil {
 					err = terr
 				} else {
-					version, _ := projectmeta.FlutterVersion(root)
-					buttons := [][]notify.InlineKeyboardButton{
-						{
-							{Text: "📊 Status", CallbackData: "tern:status"},
-							{Text: "📜 History", CallbackData: "tern:history"},
-						},
-						{
-							{Text: "🔄 Rollback", CallbackData: "tern:rollback"},
-						},
-					}
-					if terr := t.Send(ctx, fmt.Sprintf(
-						"✅ <b>Release Completed</b>\n\n"+
-							"📦 Version: %s\n"+
-							"🎯 Lane: %s\n"+
-							"🕐 Time: %s",
-						version, laneName,
-						time.Now().Format("2006-01-02 15:04:05"),
-					), buttons...); terr != nil {
-						err = terr
-					} else {
-						msg = "notification sent to Telegram"
-					}
+					msg = "notification sent to Telegram"
 				}
 			} else {
 				err = ternerrors.NewHint(ternerrors.ClassConfig,
