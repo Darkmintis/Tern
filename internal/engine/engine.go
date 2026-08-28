@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/darkmintis/Tern/internal/adapter"
@@ -76,6 +78,16 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 	// restore only when the lane fails (so a timeout/error doesn't leave
 	// pubspec in a half-bumped state).
 	savedPubspec, _ := os.ReadFile(pubspecPath(root))
+
+	// Restore pubspec on Ctrl+C or SIGTERM.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		signal.Stop(sigCh)
+		e.restorePubspec(root, savedPubspec, em, laneName)
+		os.Exit(1)
+	}()
 
 	ad, ok := e.Registry.Detect(root)
 	if !ok {
