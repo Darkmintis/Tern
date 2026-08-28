@@ -97,17 +97,19 @@ func TestSignAndroidLiveWritesKeyProperties(t *testing.T) {
 
 func TestSignIOSValidated(t *testing.T) {
 	m := signing.NewManager()
-	t.Setenv("IOS_CERT", "https://example.com/cert.p12")
+	t.Setenv("IOS_CERTIFICATE", "https://example.com/cert.p12")
+	t.Setenv("IOS_PROVISIONING_PROFILE", "https://example.com/profile.mobileprovision")
+	t.Setenv("IOS_TEAM_ID", "ABC123")
 	res, err := m.Sign(t.Context(), signing.SignOptions{
 		Platform: config.PlatformIOS,
 		With:     "cert",
-		EnvRef:   "IOS_CERT",
+		EnvRef:   "IOS_CERTIFICATE",
 		DryRun:   true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(res.Message, "ios") {
+	if !strings.Contains(res.Message, "certificate") {
 		t.Fatalf("%s", res.Message)
 	}
 }
