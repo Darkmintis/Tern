@@ -50,11 +50,11 @@ const (
 
 // iOS signing env vars.
 const (
-	EnvIOSCert       = "IOS_CERTIFICATE"
-	EnvIOSCertPass   = "IOS_CERTIFICATE_PASSWORD"
-	EnvIOSProfile    = "IOS_PROVISIONING_PROFILE"
-	EnvIOSTeamID     = "IOS_TEAM_ID"
-	EnvIOSKeychain   = "IOS_KEYCHAIN_PATH"
+	EnvIOSCert         = "IOS_CERTIFICATE"
+	EnvIOSCertPass     = "IOS_CERTIFICATE_PASSWORD"
+	EnvIOSProfile      = "IOS_PROVISIONING_PROFILE"
+	EnvIOSTeamID       = "IOS_TEAM_ID"
+	EnvIOSKeychain     = "IOS_KEYCHAIN_PATH"
 	EnvIOSKeychainPass = "IOS_KEYCHAIN_PASSWORD"
 )
 
