@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -14,7 +15,9 @@ import (
 	"github.com/darkmintis/Tern/internal/bump"
 	"github.com/darkmintis/Tern/internal/config"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
+	"github.com/darkmintis/Tern/internal/history"
 	"github.com/darkmintis/Tern/internal/output"
+	"github.com/darkmintis/Tern/internal/projectmeta"
 	"github.com/darkmintis/Tern/internal/signing"
 	"github.com/darkmintis/Tern/internal/upload"
 	"golang.org/x/sync/errgroup"
@@ -372,4 +375,34 @@ func shortHash(s string) string {
 		return s[:12] + "…"
 	}
 	return s
+}
+
+func (e *Engine) recordRelease(root, laneName string, step config.Step, artPath string, artSHA string) {
+	if step.Kind != config.StepUpload && step.Kind != config.StepShip {
+		return
+	}
+	versionStr, err := projectmeta.FlutterVersion(root)
+	if err != nil {
+		return
+	}
+	parts := strings.SplitN(versionStr, "+", 2)
+	version := versionStr
+	build := 0
+	if len(parts) == 2 {
+		version = parts[0]
+		fmt.Sscanf(parts[1], "%d", &build)
+	}
+	rec := history.Record{
+		Version:      version,
+		Build:        build,
+		Platform:     step.Platform,
+		Target:       step.UploadTarget,
+		Track:        step.Track,
+		ArtifactPath: artPath,
+		ArtifactSHA:  artSHA,
+		ReleasedAt:   time.Now().UTC(),
+		Lane:         laneName,
+		Rollout:      step.Rollout,
+	}
+	_ = history.Append(root, rec)
 }

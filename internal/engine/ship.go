@@ -94,7 +94,7 @@ func (e *Engine) runUploadOrShip(
 		return "", err
 	}
 
-	return e.Upload.Upload(ctx, upload.Options{
+	msg, uerr := e.Upload.Upload(ctx, upload.Options{
 		Platform:    step.Platform,
 		Target:      step.UploadTarget,
 		Track:       step.Track,
@@ -104,6 +104,17 @@ func (e *Engine) runUploadOrShip(
 		DryRun:      opts.DryRun,
 		ReleaseSpec: upload.SpecFromStep(step),
 	})
+	if uerr != nil {
+		return "", uerr
+	}
+	if !opts.DryRun {
+		var sha string
+		if _, rec, rerr := artifacts.ResolvePath(root, step.Platform, artPath); rerr == nil {
+			sha = rec.SHA256
+		}
+		e.recordRelease(root, "", step, artPath, sha)
+	}
+	return msg, nil
 }
 
 // Ship uploads a saved or explicit artifact without rebuilding.
@@ -181,5 +192,15 @@ func (e *Engine) Ship(ctx context.Context, opts ShipOptions) error {
 		return uerr
 	}
 	em.Emit(output.Event{Type: "ship_end", Status: "ok", Message: msg + " sha256=" + shortHash(rec.SHA256)})
+	if !opts.DryRun {
+		step := config.Step{
+			Kind:         config.StepShip,
+			Platform:     platform,
+			UploadTarget: opts.Target,
+			Track:        opts.Track,
+			Rollout:      opts.Rollout,
+		}
+		e.recordRelease(root, "", step, path, rec.SHA256)
+	}
 	return nil
 }
