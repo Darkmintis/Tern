@@ -159,24 +159,24 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 					i = j
 					continue
 				}
-			// Sequential: run each build step one by one.
-			for _, step := range group {
-				if err := e.runStep(ctx, ad, root, step, opts, artifactsMap, &mu, em, laneName, ""); err != nil {
-					em.Emit(errorEvent(laneName, step.Raw, err, em))
-					em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
-					e.restorePubspec(root, savedPubspec, em, laneName)
-					return err
+				// Sequential: run each build step one by one.
+				for _, step := range group {
+					if err := e.runStep(ctx, ad, root, step, opts, artifactsMap, &mu, em, laneName, ""); err != nil {
+						em.Emit(errorEvent(laneName, step.Raw, err, em))
+						em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
+						e.restorePubspec(root, savedPubspec, em, laneName)
+						return err
+					}
 				}
-			}
 				i = j
 				continue
 			}
 		}
 
-	step := lane.Steps[i]
-	if err := e.runStep(ctx, ad, root, step, opts, artifactsMap, &mu, em, laneName, ""); err != nil {
-		em.Emit(errorEvent(laneName, step.Raw, err, em))
-		em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
+		step := lane.Steps[i]
+		if err := e.runStep(ctx, ad, root, step, opts, artifactsMap, &mu, em, laneName, ""); err != nil {
+			em.Emit(errorEvent(laneName, step.Raw, err, em))
+			em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
 			e.restorePubspec(root, savedPubspec, em, laneName)
 			// Send failure notification
 			if !opts.DryRun && (os.Getenv("TELEGRAM_BOT_TOKEN") != "" || os.Getenv("TERN_TELEGRAM_BOT_TOKEN") != "") {
