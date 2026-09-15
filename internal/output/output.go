@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -32,9 +33,19 @@ type Event struct {
 
 // Emitter writes human logs and optional JSON lines.
 type Emitter struct {
-	Mode   Mode
-	Out    io.Writer
-	Logger *slog.Logger
+	Mode      Mode
+	Out       io.Writer
+	Logger    *slog.Logger
+	Formatter *HumanFormatter
+	doctorBuf []doctorCheck // accumulates doctor checks for grouped output
+}
+
+// doctorCheck mirrors the doctor.Check type for display purposes.
+type doctorCheck struct {
+	Name    string
+	OK      bool
+	Message string
+	Hint    string
 }
 
 func New(mode Mode) *Emitter {
@@ -42,9 +53,10 @@ func New(mode Mode) *Emitter {
 	level := slog.LevelInfo
 	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})
 	return &Emitter{
-		Mode:   mode,
-		Out:    w,
-		Logger: slog.New(handler),
+		Mode:      mode,
+		Out:       w,
+		Logger:    slog.New(handler),
+		Formatter: NewHumanFormatter(os.Stderr),
 	}
 }
 
@@ -56,20 +68,68 @@ func (e *Emitter) Emit(ev Event) {
 		_ = json.NewEncoder(e.Out).Encode(ev)
 		return
 	}
+	if e.Formatter == nil {
+		e.Formatter = NewHumanFormatter(os.Stderr)
+	}
 	switch ev.Type {
 	case "lane_start":
-		e.Logger.Info("lane start", "lane", ev.Lane)
+		e.Formatter.FormatLaneStart(ev.Lane)
 	case "lane_end":
-		e.Logger.Info("lane end", "lane", ev.Lane, "status", ev.Status, "duration_ms", ev.DurationMs)
+		e.Formatter.FormatLaneEnd(ev.Lane, ev.Status, ev.DurationMs)
 	case "step_start":
-		e.Logger.Info("step start", "step", ev.Step)
+		// Step start is a no-op in human mode; we show result at step_end.
 	case "step_end":
-		e.Logger.Info("step end", "step", ev.Step, "status", ev.Status, "duration_ms", ev.DurationMs, "msg", ev.Message)
+		e.Formatter.FormatStepEnd(ev.Step, ev.Status, ev.Message, ev.DurationMs)
 	case "doctor":
-		e.Logger.Info("doctor", "status", ev.Status, "msg", ev.Message)
+		// Buffer doctor checks for grouped output.
+		e.doctorBuf = append(e.doctorBuf, doctorCheck{
+			Name:    extractDoctorName(ev.Message),
+			OK:      ev.Status == "ok",
+			Message: extractDoctorMessage(ev.Message),
+			Hint:    ev.Hint,
+		})
 	case "error":
-		e.Logger.Error("error", "class", ev.ErrorClass, "msg", ev.Message)
+		e.Formatter.FormatError(ev.ErrorClass, ev.Message)
+	case "validate":
+		e.Formatter.FormatValidate(ev.Status, ev.Message)
+	case "ship_start":
+		e.Formatter.FormatShipStart(ev.Message)
+	case "ship_end":
+		e.Formatter.FormatShipEnd(ev.Status, ev.Message, ev.DurationMs)
+	case "promote_plan", "promote_start", "promote_end":
+		e.Formatter.FormatPromote(ev.Status, ev.Message)
 	default:
-		e.Logger.Info(ev.Type, "msg", ev.Message)
+		e.Formatter.FormatGeneric(ev.Type, ev.Message)
 	}
+}
+
+// FlushDoctor outputs all buffered doctor checks as a grouped report.
+func (e *Emitter) FlushDoctor() {
+	if len(e.doctorBuf) > 0 {
+		e.Formatter.FormatDoctor(e.doctorBuf)
+		e.doctorBuf = nil
+	}
+}
+
+// extractDoctorName pulls the check name from a "name: message" string.
+// Handles "env:ANDROID_KEYSTORE: present" → name="env:ANDROID_KEYSTORE".
+func extractDoctorName(msg string) string {
+	// Split on ": " (colon-space) to get [name, message].
+	name, _, _ := strings.Cut(msg, ": ")
+	// For env:VAR entries, include the var name in the display label.
+	if prefix, varName, ok := strings.Cut(name, ":"); ok && prefix == "env" {
+		return "env:" + varName
+	}
+	return name
+}
+
+// extractDoctorMessage pulls the message portion after "name: ".
+func extractDoctorMessage(msg string) string {
+	_, message, _ := strings.Cut(msg, ": ")
+	// For env:VAR entries, skip past "env:VAR: " to get the actual value.
+	if prefix, rest, ok := strings.Cut(message, ": "); ok {
+		_ = prefix
+		return rest
+	}
+	return message
 }

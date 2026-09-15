@@ -219,8 +219,10 @@ func Run(opts Options) ([]Check, error) {
 		if c.Hint != "" && !c.OK {
 			msg += " | hint: " + c.Hint
 		}
-		em.Emit(output.Event{Type: "doctor", Status: status, Message: msg, ErrorClass: ternary(!c.OK, string(ternerrors.ClassDoctor), "")})
+		em.Emit(output.Event{Type: "doctor", Status: status, Message: msg, Hint: c.Hint, ErrorClass: ternary(!c.OK, string(ternerrors.ClassDoctor), "")})
 	}
+	// Flush grouped doctor output in human mode.
+	em.FlushDoctor()
 	if !allOK {
 		return checks, ternerrors.NewHint(ternerrors.ClassDoctor,
 			"one or more doctor checks failed",

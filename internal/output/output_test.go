@@ -17,7 +17,7 @@ func jsonEmitter() (*Emitter, *bytes.Buffer) {
 func humanEmitter() (*Emitter, *bytes.Buffer) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	return &Emitter{Mode: ModeHuman, Logger: logger}, &buf
+	return &Emitter{Mode: ModeHuman, Logger: logger, Formatter: NewHumanFormatter(&buf)}, &buf
 }
 
 func TestJSONEncodesAllFields(t *testing.T) {
@@ -61,14 +61,14 @@ func TestHumanEventTypes(t *testing.T) {
 		ev   Event
 		want string
 	}{
-		{Event{Type: "lane_start", Lane: "x"}, "lane start"},
-		{Event{Type: "lane_end", Lane: "x", Status: "ok"}, "lane end"},
-		{Event{Type: "step_start", Lane: "x", Step: "build"}, "step start"},
-		{Event{Type: "step_end", Lane: "x", Step: "build", Status: "ok"}, "step end"},
-		{Event{Type: "doctor", Status: "ok"}, "doctor"},
-		{Event{Type: "validate", Status: "ok", Message: "v"}, "validate"},
+		{Event{Type: "lane_start", Lane: "x"}, "Lane"},
+		{Event{Type: "lane_end", Lane: "x", Status: "ok"}, "completed"},
+		{Event{Type: "step_end", Lane: "x", Step: "build", Status: "ok"}, "build"},
 		{Event{Type: "error", ErrorClass: "ExecError", Message: "boom"}, "ERROR"},
-		{Event{Type: "custom", Message: "hello"}, "custom"},
+		{Event{Type: "custom", Message: "hello"}, "hello"},
+		{Event{Type: "validate", Status: "ok", Message: "v"}, "v"},
+		{Event{Type: "ship_start", Message: "uploading"}, "uploading"},
+		{Event{Type: "promote_plan", Status: "dry_run", Message: "promote"}, "promote"},
 	} {
 		buf.Reset()
 		e.Emit(tc.ev)
