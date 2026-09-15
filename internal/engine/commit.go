@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,8 +14,18 @@ import (
 
 var commitVersionRe = regexp.MustCompile(`(?m)^version:\s*(.+)`)
 
-func runGitCommit(root, message string, dryRun bool) (string, error) {
-	// Resolve $version placeholder in commit message.
+// CommitPubspec stages pubspec.yaml (or all files with --all) and commits.
+// $version in the message is replaced with the current pubspec version.
+func (e *Engine) CommitPubspec(ctx context.Context, root, message string, all, dryRun bool) (string, error) {
+	return runGitCommit(root, message, all, dryRun)
+}
+
+// TagVersion creates a git tag from the pubspec version.
+func (e *Engine) TagVersion(ctx context.Context, root, prefix string, dryRun bool) (string, error) {
+	return runGitTag(root, prefix, dryRun)
+}
+
+func runGitCommit(root, message string, all, dryRun bool) (string, error) {
 	ver := "0.0.0"
 	pub := filepath.Join(root, "pubspec.yaml")
 	data, err := os.ReadFile(pub)
@@ -30,18 +41,29 @@ func runGitCommit(root, message string, dryRun bool) (string, error) {
 	}
 
 	if dryRun {
+		if all {
+			return "dry-run: would git add -A && git commit -m \"" + msg + "\"", nil
+		}
 		return "dry-run: would git commit -m \"" + msg + "\"", nil
 	}
 
-	// Stage pubspec.yaml (the file bump modifies).
-	cmd := exec.Command("git", "add", "pubspec.yaml")
-	cmd.Dir = root
-	if err := cmd.Run(); err != nil {
-		return "", ternerrors.Wrap(ternerrors.ClassExec, "git add pubspec.yaml", err)
+	// Stage files.
+	if all {
+		cmd := exec.Command("git", "add", "-A")
+		cmd.Dir = root
+		if err := cmd.Run(); err != nil {
+			return "", ternerrors.Wrap(ternerrors.ClassExec, "git add -A", err)
+		}
+	} else {
+		cmd := exec.Command("git", "add", "pubspec.yaml")
+		cmd.Dir = root
+		if err := cmd.Run(); err != nil {
+			return "", ternerrors.Wrap(ternerrors.ClassExec, "git add pubspec.yaml", err)
+		}
 	}
 
 	// Commit.
-	cmd = exec.Command("git", "commit", "-m", msg)
+	cmd := exec.Command("git", "commit", "-m", msg)
 	cmd.Dir = root
 	if err := cmd.Run(); err != nil {
 		return "", ternerrors.Wrap(ternerrors.ClassExec, "git commit", err)

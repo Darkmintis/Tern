@@ -18,6 +18,7 @@ import (
 	"github.com/darkmintis/Tern/internal/engine"
 	"github.com/darkmintis/Tern/internal/history"
 	initcmd "github.com/darkmintis/Tern/internal/initcmd"
+	"github.com/darkmintis/Tern/internal/output"
 	"github.com/darkmintis/Tern/internal/projectmeta"
 	"github.com/darkmintis/Tern/internal/releasemeta"
 	"github.com/darkmintis/Tern/internal/store"
@@ -671,4 +672,54 @@ func runLane(g *globalFlags, reg *adapter.Registry, name string) error {
 		Parallel:    g.resolveParallel(),
 		Emitter:     emitter(g),
 	})
+}
+
+func cmdCommit(g *globalFlags) *cobra.Command {
+	var msg string
+	var commitAll bool
+	c := &cobra.Command{
+		Use:   "commit",
+		Short: "Commit pubspec.yaml with a release message",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			eng := engine.New(nil)
+			em := emitter(g)
+			msgArg := msg
+			if msgArg == "" {
+				msgArg = "release: v$version"
+			}
+			result, err := eng.CommitPubspec(context.Background(), g.dir, msgArg, commitAll, g.dryRun)
+			if err != nil {
+				return err
+			}
+			em.Emit(output.Event{Type: "commit", Status: "ok", Message: result})
+			return nil
+		},
+	}
+	c.Flags().StringVar(&msg, "message", "", "commit message (default: release: v$version)")
+	c.Flags().BoolVar(&commitAll, "all", false, "commit all changed files (not just pubspec.yaml)")
+	return c
+}
+
+func cmdTag(g *globalFlags) *cobra.Command {
+	var prefix string
+	c := &cobra.Command{
+		Use:   "tag",
+		Short: "Create a git tag from the pubspec version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			eng := engine.New(nil)
+			em := emitter(g)
+			pfx := prefix
+			if pfx == "" {
+				pfx = "v"
+			}
+			result, err := eng.TagVersion(context.Background(), g.dir, pfx, g.dryRun)
+			if err != nil {
+				return err
+			}
+			em.Emit(output.Event{Type: "tag", Status: "ok", Message: result})
+			return nil
+		},
+	}
+	c.Flags().StringVar(&prefix, "prefix", "v", "tag prefix (e.g., v)")
+	return c
 }
