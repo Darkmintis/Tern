@@ -19,6 +19,7 @@ type yamlStep struct {
 	Ship      *yamlShip      `yaml:"ship"`
 	Bump      *yamlBump      `yaml:"bump"`
 	Tag       *yamlTag       `yaml:"tag"`
+	Commit    *yamlCommit    `yaml:"commit"`
 	SyncCerts *yamlSyncCerts `yaml:"sync_certs"`
 	Notify    *yamlNotify    `yaml:"notify"`
 }
@@ -66,6 +67,10 @@ type yamlBump struct {
 
 type yamlTag struct {
 	Prefix string `yaml:"prefix"`
+}
+
+type yamlCommit struct {
+	Message string `yaml:"message"`
 }
 
 type yamlSyncCerts struct {
@@ -175,6 +180,14 @@ func yamlToStep(ys yamlStep) (Step, error) {
 			prefix = "v"
 		}
 		s = Step{Kind: StepTag, TagPrefix: prefix, Raw: "tag"}
+	}
+	if ys.Commit != nil {
+		n++
+		msg := ys.Commit.Message
+		if msg == "" {
+			msg = "release: v$version"
+		}
+		s = Step{Kind: StepCommit, CommitMsg: msg, Raw: "commit"}
 	}
 	if ys.SyncCerts != nil {
 		n++

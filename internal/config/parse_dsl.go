@@ -77,6 +77,8 @@ func parseStep(line string) (Step, error) {
 		return parseBump(parts)
 	case "tag":
 		return parseTag(parts)
+	case "commit":
+		return parseCommit(parts)
 	case "sync_certs":
 		return parseSyncCerts(parts)
 	case "notify":
@@ -240,6 +242,18 @@ func parseTag(parts []string) (Step, error) {
 		}
 	}
 	return Step{Kind: StepTag, TagPrefix: prefix}, nil
+}
+
+func parseCommit(parts []string) (Step, error) {
+	// commit message:"release: v$version"
+	msg := "release: v$version"
+	for _, extra := range parts[1:] {
+		if strings.HasPrefix(extra, "message:") {
+			msg = strings.TrimPrefix(extra, "message:")
+			msg = strings.Trim(msg, "\"'")
+		}
+	}
+	return Step{Kind: StepCommit, CommitMsg: msg}, nil
 }
 
 func parseSyncCerts(parts []string) (Step, error) {

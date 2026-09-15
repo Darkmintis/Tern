@@ -26,6 +26,7 @@ const (
 	StepShip      StepKind = "ship"
 	StepBump      StepKind = "bump"
 	StepTag       StepKind = "tag"
+	StepCommit    StepKind = "commit"
 	StepSyncCerts StepKind = "sync_certs"
 	StepNotify    StepKind = "notify"
 	StepTest      StepKind = "test"
@@ -84,6 +85,7 @@ type Step struct {
 	NotesLocale string
 	BumpLevel   BumpLevel
 	TagPrefix   string
+	CommitMsg   string
 	// SyncAction is pull or push.
 	SyncAction string
 	NotifyVia  string
