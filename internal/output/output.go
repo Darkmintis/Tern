@@ -25,6 +25,7 @@ type Event struct {
 	Status        string `json:"status,omitempty"` // ok | error | dry_run | skipped
 	Message       string `json:"message,omitempty"`
 	Hint          string `json:"hint,omitempty"`
+	Detail        string `json:"detail,omitempty"` // verbose error chain (cause + stderr)
 	DurationMs    int64  `json:"duration_ms,omitempty"`
 	ErrorClass    string `json:"error_class,omitempty"`
 	ParallelGroup string `json:"parallel_group,omitempty"`
@@ -89,7 +90,11 @@ func (e *Emitter) Emit(ev Event) {
 			Hint:    ev.Hint,
 		})
 	case "error":
-		e.Formatter.FormatError(ev.ErrorClass, ev.Message)
+		if e.Formatter != nil && e.Formatter.Verbose && ev.Detail != "" {
+			e.Formatter.FormatErrorDetail(ev.ErrorClass, ev.Message, ev.Detail)
+		} else {
+			e.Formatter.FormatError(ev.ErrorClass, ev.Message)
+		}
 	case "validate":
 		e.Formatter.FormatValidate(ev.Status, ev.Message)
 	case "ship_start":

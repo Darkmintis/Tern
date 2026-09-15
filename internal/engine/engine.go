@@ -121,11 +121,7 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 		// Parallel group: consecutive independent build steps for different platforms.
 		if lane.Steps[i].Kind == config.StepBuild {
 			if err := e.ensurePlayVersionsBeforeBuilds(ctx, root, playTracks, opts, em, &playVersionOnce); err != nil {
-				class, _ := ternerrors.AsClass(err)
-				em.Emit(output.Event{
-					Type: "error", Lane: laneName, Status: "error",
-					Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
-				})
+				em.Emit(errorEvent(laneName, "", err, em))
 				em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
 				return err
 			}
@@ -155,11 +151,7 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 				})
 				if parallel {
 					if err := e.runParallelBuilds(ctx, ad, root, group, opts, artifactsMap, &mu, em, laneName); err != nil {
-						class, _ := ternerrors.AsClass(err)
-						em.Emit(output.Event{
-							Type: "error", Lane: laneName, Status: "error",
-							Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
-						})
+						em.Emit(errorEvent(laneName, "", err, em))
 						em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
 						e.restorePubspec(root, savedPubspec, em, laneName)
 						return err
@@ -167,32 +159,24 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 					i = j
 					continue
 				}
-				// Sequential: run each build step one by one.
-				for _, step := range group {
-					if err := e.runStep(ctx, ad, root, step, opts, artifactsMap, &mu, em, laneName, ""); err != nil {
-						class, _ := ternerrors.AsClass(err)
-						em.Emit(output.Event{
-							Type: "error", Lane: laneName, Step: step.Raw,
-							Status: "error", Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
-						})
-						em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
-						e.restorePubspec(root, savedPubspec, em, laneName)
-						return err
-					}
+			// Sequential: run each build step one by one.
+			for _, step := range group {
+				if err := e.runStep(ctx, ad, root, step, opts, artifactsMap, &mu, em, laneName, ""); err != nil {
+					em.Emit(errorEvent(laneName, step.Raw, err, em))
+					em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
+					e.restorePubspec(root, savedPubspec, em, laneName)
+					return err
 				}
+			}
 				i = j
 				continue
 			}
 		}
 
-		step := lane.Steps[i]
-		if err := e.runStep(ctx, ad, root, step, opts, artifactsMap, &mu, em, laneName, ""); err != nil {
-			class, _ := ternerrors.AsClass(err)
-			em.Emit(output.Event{
-				Type: "error", Lane: laneName, Step: step.Raw,
-				Status: "error", Message: ternerrors.MessageOf(err), Hint: ternerrors.HintOf(err), ErrorClass: string(class),
-			})
-			em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
+	step := lane.Steps[i]
+	if err := e.runStep(ctx, ad, root, step, opts, artifactsMap, &mu, em, laneName, ""); err != nil {
+		em.Emit(errorEvent(laneName, step.Raw, err, em))
+		em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "error", DurationMs: time.Since(start).Milliseconds()})
 			e.restorePubspec(root, savedPubspec, em, laneName)
 			// Send failure notification
 			if !opts.DryRun && (os.Getenv("TELEGRAM_BOT_TOKEN") != "" || os.Getenv("TERN_TELEGRAM_BOT_TOKEN") != "") {
@@ -459,4 +443,22 @@ func (e *Engine) recordRelease(root, laneName string, step config.Step, artPath 
 		Rollout:      step.Rollout,
 	}
 	_ = history.Append(root, rec)
+}
+
+// errorEvent builds an error event with verbose detail when enabled.
+func errorEvent(laneName, stepRaw string, err error, em *output.Emitter) output.Event {
+	class, _ := ternerrors.AsClass(err)
+	ev := output.Event{
+		Type:       "error",
+		Lane:       laneName,
+		Step:       stepRaw,
+		Status:     "error",
+		Message:    ternerrors.MessageOf(err),
+		Hint:       ternerrors.HintOf(err),
+		ErrorClass: string(class),
+	}
+	if em != nil && em.Formatter != nil && em.Formatter.Verbose {
+		ev.Detail = ternerrors.DetailOf(err)
+	}
+	return ev
 }

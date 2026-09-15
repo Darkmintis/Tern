@@ -83,7 +83,11 @@ func emitter(g *globalFlags) *output.Emitter {
 	if g.json {
 		mode = output.ModeJSON
 	}
-	return output.New(mode)
+	em := output.New(mode)
+	if g.verbose && em.Formatter != nil {
+		em.Formatter.SetVerbose(true)
+	}
+	return em
 }
 
 // resolveParallel returns *true when --parallel is set, nil otherwise (sequential default).

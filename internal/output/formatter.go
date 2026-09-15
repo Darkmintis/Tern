@@ -30,11 +30,17 @@ const (
 type HumanFormatter struct {
 	w         io.Writer
 	startTime time.Time
+	Verbose   bool
 }
 
 // NewHumanFormatter returns a formatter that writes to w.
 func NewHumanFormatter(w io.Writer) *HumanFormatter {
 	return &HumanFormatter{w: w, startTime: time.Now()}
+}
+
+// SetVerbose enables verbose mode for detailed error output.
+func (f *HumanFormatter) SetVerbose(v bool) {
+	f.Verbose = v
 }
 
 // FormatDoctor prints a full doctor report with grouped checks.
@@ -152,6 +158,14 @@ func (f *HumanFormatter) FormatStepEnd(step, status, message string, durationMs 
 // FormatError prints an error event.
 func (f *HumanFormatter) FormatError(class, message string) {
 	f.println(fmt.Sprintf("\n  %s%s ERROR: %s%s", colorRed, iconCross, message, colorReset))
+}
+
+// FormatErrorDetail prints a full error with cause and stderr in verbose mode.
+func (f *HumanFormatter) FormatErrorDetail(class, message, detail string) {
+	f.println(fmt.Sprintf("\n  %s%s ERROR: %s%s", colorRed, iconCross, message, colorReset))
+	if detail != "" {
+		f.println(fmt.Sprintf("  %s%s%s", colorDim, detail, colorReset))
+	}
 }
 
 // FormatValidate prints a validation result.

@@ -3,6 +3,7 @@ package ternerrors
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Class identifies a stable error category for CLI exit codes and JSON output.
@@ -92,6 +93,37 @@ func StderrOf(err error) string {
 		return te.Stderr
 	}
 	return ""
+}
+
+// DetailOf returns the full error chain for verbose/debug output.
+// Format: "message | hint | cause | stderr" (omits empty sections).
+func DetailOf(err error) string {
+	var te *Error
+	if !errors.As(err, &te) {
+		if err == nil {
+			return ""
+		}
+		return err.Error()
+	}
+	var parts []string
+	if te.Message != "" {
+		parts = append(parts, te.Message)
+	}
+	if te.Hint != "" {
+		parts = append(parts, "hint: "+te.Hint)
+	}
+	if te.Err != nil {
+		parts = append(parts, "cause: "+te.Err.Error())
+	}
+	if te.Stderr != "" {
+		// Show last 500 chars of stderr for context.
+		stderr := te.Stderr
+		if len(stderr) > 500 {
+			stderr = "..." + stderr[len(stderr)-500:]
+		}
+		parts = append(parts, "stderr:\n"+stderr)
+	}
+	return strings.Join(parts, "\n  ")
 }
 
 const maxStderr = 16 * 1024
