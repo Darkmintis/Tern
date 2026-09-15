@@ -10,6 +10,7 @@ import (
 	"github.com/darkmintis/Tern/internal/diagnose"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	"google.golang.org/api/androidpublisher/v3"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
@@ -90,14 +91,14 @@ func (c APIClient) Upload(ctx context.Context, req UploadRequest) (string, error
 	var versionCode int64
 	if ext == ".aab" {
 		bundle, uerr := svc.Edits.Bundles.Upload(req.PackageName, edit.Id).
-			Context(ctx).Media(f).Do()
+			Context(ctx).Media(f, googleapi.ContentType("application/octet-stream")).Do()
 		if uerr != nil {
 			return "", classifyUpload("play: upload bundle", uerr)
 		}
 		versionCode = bundle.VersionCode
 	} else {
 		apk, uerr := svc.Edits.Apks.Upload(req.PackageName, edit.Id).
-			Context(ctx).Media(f).Do()
+			Context(ctx).Media(f, googleapi.ContentType("application/octet-stream")).Do()
 		if uerr != nil {
 			return "", classifyUpload("play: upload apk", uerr)
 		}
