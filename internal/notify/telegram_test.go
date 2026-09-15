@@ -1,9 +1,12 @@
 package notify
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -63,38 +66,153 @@ func TestNewTelegram_TernEnvVars(t *testing.T) {
 }
 
 func TestSend_Success(t *testing.T) {
-	// Mock Telegram API
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if !strings.Contains(r.URL.Path, "/sendMessage") {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
 		var msg Message
-		if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
-			t.Error(err)
+		if err := json.Unmarshal(body, &msg); err != nil {
+			t.Errorf("invalid json: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		if msg.ChatID != "123456" {
 			t.Errorf("expected chat_id 123456, got %s", msg.ChatID)
 		}
-		if msg.Text == "" {
-			t.Error("expected non-empty text")
+		if msg.Text != "hello" {
+			t.Errorf("expected text hello, got %s", msg.Text)
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok": true}`))
 	}))
 	defer server.Close()
 
-	// We can't easily test the real Send function without mocking the URL
-	// But we can test the message structure
-	msg := Message{
-		ChatID:    "123456",
-		Text:      "Test message",
-		ParseMode: "HTML",
+	notifier := &TelegramNotifier{
+		BotToken: "test-token",
+		ChatID:   "123456",
+		BaseURL:  server.URL,
 	}
 
-	body, err := json.Marshal(msg)
+	err := notifier.Send(context.Background(), "hello")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSend_WithButtons(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var msg Message
+		if err := json.Unmarshal(body, &msg); err != nil {
+			t.Errorf("invalid json: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if msg.ReplyMarkup == nil {
+			t.Error("expected reply_markup")
+		}
+		if len(msg.ReplyMarkup.InlineKeyboard) != 1 {
+			t.Errorf("expected 1 row, got %d", len(msg.ReplyMarkup.InlineKeyboard))
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok": true}`))
+	}))
+	defer server.Close()
+
+	notifier := &TelegramNotifier{
+		BotToken: "test-token",
+		ChatID:   "123456",
+		BaseURL:  server.URL,
+	}
+
+	buttons := [][]InlineKeyboardButton{
+		{{Text: "Promote", URL: "https://example.com"}},
+	}
+	err := notifier.Send(context.Background(), "test", buttons...)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSend_APIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error": "forbidden"}`))
+	}))
+	defer server.Close()
+
+	notifier := &TelegramNotifier{
+		BotToken: "bad-token",
+		ChatID:   "123456",
+		BaseURL:  server.URL,
+	}
+
+	err := notifier.Send(context.Background(), "test")
+	if err == nil {
+		t.Fatal("expected error for 403")
+	}
+}
+
+func TestNotifyReleaseSuccess_FormatsCorrectly(t *testing.T) {
+	var receivedBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok": true}`))
+	}))
+	defer server.Close()
+
+	notifier := &TelegramNotifier{
+		BotToken: "test-token",
+		ChatID:   "123456",
+		BaseURL:  server.URL,
+	}
+
+	// We can't call NotifyReleaseSuccess directly since it creates its own notifier.
+	// But we can test the message format by calling Send with the same format.
+	text := "✅ <b>Release Shipped</b>\n\n" +
+		"<b>Version:</b> 1.2.3\n" +
+		"<b>Platform:</b> android\n" +
+		"<b>Track:</b> internal"
+
+	buttons := [][]InlineKeyboardButton{
+		{
+			{Text: "🚀 Promote to Production", URL: "https://telegram.me/tern-bot?start=promote_production"},
+			{Text: "⏪ Emergency Rollback", URL: "https://telegram.me/tern-bot?start=rollback"},
+		},
+	}
+
+	err := notifier.Send(context.Background(), text, buttons...)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	var msg Message
+	if err := json.Unmarshal(receivedBody, &msg); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(msg.Text, "Release Shipped") {
+		t.Errorf("missing release text: %s", msg.Text)
+	}
+	if msg.ReplyMarkup == nil {
+		t.Error("expected reply markup")
+	}
+}
+
+func TestMessageJSON(t *testing.T) {
+	msg := Message{
+		ChatID:    "123456",
+		Text:      "hello",
+		ParseMode: "HTML",
+	}
+	body, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var parsed Message
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		t.Fatal(err)
@@ -102,57 +220,7 @@ func TestSend_Success(t *testing.T) {
 	if parsed.ChatID != "123456" {
 		t.Fatalf("expected 123456, got %s", parsed.ChatID)
 	}
-}
-
-func TestMessageWithButtons(t *testing.T) {
-	msg := Message{
-		ChatID:    "123456",
-		Text:      "Test",
-		ParseMode: "HTML",
-		ReplyMarkup: &ReplyMarkup{
-			InlineKeyboard: [][]InlineKeyboardButton{
-				{
-					{Text: "Button 1", URL: "https://example.com"},
-					{Text: "Button 2", CallbackData: "action:2"},
-				},
-			},
-		},
-	}
-
-	body, err := json.Marshal(msg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var parsed Message
-	if err := json.Unmarshal(body, &parsed); err != nil {
-		t.Fatal(err)
-	}
-
-	if parsed.ReplyMarkup == nil {
-		t.Fatal("expected reply markup")
-	}
-	if len(parsed.ReplyMarkup.InlineKeyboard) != 1 {
-		t.Fatalf("expected 1 row, got %d", len(parsed.ReplyMarkup.InlineKeyboard))
-	}
-	if len(parsed.ReplyMarkup.InlineKeyboard[0]) != 2 {
-		t.Fatalf("expected 2 buttons, got %d", len(parsed.ReplyMarkup.InlineKeyboard[0]))
-	}
-}
-
-func TestNotifyReleaseSuccess_FormatsCorrectly(t *testing.T) {
-	// Test that the function would format the message correctly
-	// (We can't actually send without a real token)
-	version := "1.2.3"
-	platform := "android"
-	track := "internal"
-
-	text := "✅ <b>Release Shipped</b>\n\n" +
-		"<b>Version:</b> " + version + "\n" +
-		"<b>Platform:</b> " + platform + "\n" +
-		"<b>Track:</b> " + track
-
-	if text == "" {
-		t.Fatal("expected non-empty message")
+	if parsed.ParseMode != "HTML" {
+		t.Fatalf("expected HTML, got %s", parsed.ParseMode)
 	}
 }

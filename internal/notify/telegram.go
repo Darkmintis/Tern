@@ -17,6 +17,7 @@ import (
 type TelegramNotifier struct {
 	BotToken string
 	ChatID   string
+	BaseURL  string // optional override for testing (default: https://api.telegram.org)
 }
 
 // Message represents a Telegram message.
@@ -84,7 +85,11 @@ func (t *TelegramNotifier) Send(ctx context.Context, text string, buttons ...[]I
 		return ternerrors.Wrap(ternerrors.ClassConfig, "marshal telegram message", err)
 	}
 
-	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.BotToken)
+	baseURL := t.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.telegram.org"
+	}
+	url := fmt.Sprintf("%s/bot%s/sendMessage", baseURL, t.BotToken)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return ternerrors.Wrap(ternerrors.ClassConfig, "create telegram request", err)
