@@ -130,6 +130,7 @@ func (c *Client) Promote(ctx context.Context, opts PromoteOpts) error {
 	}
 	em.Emit(output.Event{
 		Type:    "promote_start",
+		Status:  "ok",
 		Message: fmt.Sprintf("%s %s → %s", platform, opts.Source, opts.Target),
 	})
 
