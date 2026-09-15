@@ -79,6 +79,7 @@ func TestDetectCI_GitHubActions(t *testing.T) {
 }
 
 func TestDetectCI_GitLabCI(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "")
 	t.Setenv("GITLAB_CI", "true")
 	t.Setenv("CI_COMMIT_REF_NAME", "develop")
 	t.Setenv("CI_COMMIT_SHA", "def456")
@@ -93,6 +94,7 @@ func TestDetectCI_GitLabCI(t *testing.T) {
 }
 
 func TestDetectCI_Jenkins(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "")
 	t.Setenv("JENKINS_URL", "http://jenkins.example.com")
 	t.Setenv("GIT_BRANCH", "origin/main")
 	t.Setenv("GIT_COMMIT", "ghi789")
@@ -107,6 +109,7 @@ func TestDetectCI_Jenkins(t *testing.T) {
 }
 
 func TestDetectCI_CircleCI(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "")
 	t.Setenv("CIRCLECI", "true")
 	t.Setenv("CIRCLE_BRANCH", "main")
 	t.Setenv("CIRCLE_SHA1", "jkl012")
