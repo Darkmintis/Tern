@@ -81,7 +81,7 @@ func Run(opts Options) (Result, error) {
 	if artPath == "" || artPath == "last" {
 		p, r, rerr := artifacts.ResolvePath(root, platform, "last")
 		if rerr != nil {
-			fail("artifact", rerr.Error())
+			fail("artifact", "no saved artifact found - run `tern build` or `tern release` first")
 		} else {
 			artPath = p
 			rec = r

@@ -8,6 +8,7 @@ import (
 
 	"github.com/darkmintis/Tern/internal/artifacts"
 	"github.com/darkmintis/Tern/internal/config"
+	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	"github.com/darkmintis/Tern/internal/output"
 	"github.com/darkmintis/Tern/internal/releasemeta"
 	"github.com/darkmintis/Tern/internal/safety"
@@ -142,7 +143,10 @@ func (e *Engine) Ship(ctx context.Context, opts ShipOptions) error {
 	}
 	path, rec, err := artifacts.ResolvePath(root, platform, from)
 	if err != nil {
-		return err
+		return ternerrors.WrapHint(ternerrors.ClassUpload,
+			"cannot resolve artifact for ship",
+			"run `tern build` or `tern release` first to create an artifact, then retry ship",
+			err)
 	}
 	em.Emit(output.Event{Type: "ship_start", Message: fmt.Sprintf("%s → %s", path, opts.Target)})
 
