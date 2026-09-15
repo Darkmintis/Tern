@@ -95,3 +95,45 @@ func TestNewDefaults(t *testing.T) {
 		t.Fatal("defaults must be wired")
 	}
 }
+
+func TestFlushDoctor(t *testing.T) {
+	e, buf := humanEmitter()
+	e.Emit(Event{Type: "doctor", Message: "env:ANDROID_KEYSTORE: present"})
+	e.Emit(Event{Type: "doctor", Message: "flutter: installed"})
+	if len(e.doctorBuf) != 2 {
+		t.Fatalf("expected 2 buffered, got %d", len(e.doctorBuf))
+	}
+	e.FlushDoctor()
+	if len(e.doctorBuf) != 0 {
+		t.Fatal("buffer should be empty after flush")
+	}
+	out := buf.String()
+	if !strings.Contains(out, "ANDROID_KEYSTORE") {
+		t.Fatalf("output missing check: %s", out)
+	}
+}
+
+func TestFlushDoctorEmpty(t *testing.T) {
+	e, _ := humanEmitter()
+	e.FlushDoctor() // should not panic
+}
+
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		ms   int64
+		want string
+	}{
+		{0, "0ms"},
+		{500, "500ms"},
+		{999, "999ms"},
+		{1000, "1.0s"},
+		{1500, "1.5s"},
+		{2345, "2.3s"},
+	}
+	for _, tc := range tests {
+		got := formatDuration(tc.ms)
+		if got != tc.want {
+			t.Errorf("formatDuration(%d) = %q, want %q", tc.ms, got, tc.want)
+		}
+	}
+}
