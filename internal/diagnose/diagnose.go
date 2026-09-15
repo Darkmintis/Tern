@@ -101,6 +101,20 @@ var rules = []rule{
 		},
 	},
 	{
+		class: ternerrors.ClassUpload, problem: "Promote to production blocked by Play Console",
+		hint: "Play requires closed/open testing for at least 14 days before production release — check Play Console → Production → Prerequisites",
+		match: func(l string) bool {
+			return containsAny(l, "failedprecondition", "precondition check failed", "preconditioncheck")
+		},
+	},
+	{
+		class: ternerrors.ClassUpload, problem: "Release notes file is empty",
+		hint: "add release notes to RELEASE.md before running ship, or use notes:\"your text\" in the Ternfile",
+		match: func(l string) bool {
+			return containsAny(l, "release notes file is empty")
+		},
+	},
+	{
 		class: ternerrors.ClassUpload, problem: "App package not found in Play Console",
 		hint: "create the app in Play Console first, or set ANDROID_PACKAGE_NAME to match applicationId",
 		match: func(l string) bool {

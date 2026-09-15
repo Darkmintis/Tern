@@ -195,10 +195,10 @@ const gitignoreExtras = `
 secrets/
 `
 
-const releaseNotesTemplate = `<!-- Write release notes for the next version below. -->
-<!-- Tern reads this file during upload and clears it after a successful release. -->
-<!-- Use one line per entry. Markdown is supported. -->
-
+const releaseNotesTemplate = `# Release notes for the next version
+# Tern uses this file for upload release notes — update it before each release.
+# Markdown is supported.
+- Bug fixes and improvements
 `
 
 // Result of init.

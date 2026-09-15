@@ -197,7 +197,7 @@ func (e *Engine) RunLane(ctx context.Context, cfg *config.Config, laneName strin
 
 	em.Emit(output.Event{Type: "lane_end", Lane: laneName, Status: "ok", DurationMs: time.Since(start).Milliseconds()})
 	if !opts.DryRun {
-		e.clearReleaseNotes(root, em, laneName)
+		e.remindReleaseNotes(root, em, laneName)
 		// Send success notification if telegram is configured
 		if os.Getenv("TELEGRAM_BOT_TOKEN") != "" || os.Getenv("TERN_TELEGRAM_BOT_TOKEN") != "" {
 			version, _ := projectmeta.FlutterVersion(root)
@@ -221,27 +221,18 @@ func pubspecPath(root string) string {
 	return root + "/pubspec.yaml"
 }
 
-const releaseNotesTemplate = `<!-- Write release notes for the next version below. -->
-<!-- Tern reads this file during upload and clears it after a successful release. -->
-<!-- Use one line per entry. Markdown is supported. -->
-
-`
-
-func (e *Engine) clearReleaseNotes(root string, em *output.Emitter, laneName string) {
+func (e *Engine) remindReleaseNotes(root string, em *output.Emitter, laneName string) {
 	path := filepath.Join(root, "RELEASE.md")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return
-	}
-	if err := os.WriteFile(path, []byte(releaseNotesTemplate), 0o644); err != nil {
 		em.Emit(output.Event{
-			Type: "warning", Lane: laneName, Status: "ok",
-			Message: "could not clear RELEASE.md: " + err.Error(),
+			Type: "release_notes_reminder", Lane: laneName, Status: "ok",
+			Message: "update RELEASE.md with notes for your next version",
 		})
 		return
 	}
 	em.Emit(output.Event{
-		Type: "release_notes_cleared", Lane: laneName, Status: "ok",
-		Message: "RELEASE.md cleared for next version",
+		Type: "release_notes_reminder", Lane: laneName, Status: "ok",
+		Message: "ensure RELEASE.md has notes for your next version before releasing again",
 	})
 }
 
