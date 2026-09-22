@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
+	"github.com/darkmintis/Tern/internal/history"
 	"github.com/darkmintis/Tern/internal/output"
 	"github.com/darkmintis/Tern/internal/upload"
 	"github.com/darkmintis/Tern/internal/upload/asc"
@@ -123,9 +124,11 @@ func TestPromoteAndroidSuccess(t *testing.T) {
 		}
 		return play.SourceRelease{Track: "internal", VersionCode: 42, Status: "completed", Name: "1.2.3 (42)", Eligible: true}, nil
 	}
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte("name: app\nversion: 1.2.3+42\n"), 0o644)
 	var confirmedPlan upload.PromotePlan
 	err := androidPromoteClient(fp).Promote(context.Background(), upload.PromoteOpts{
-		ProjectRoot: t.TempDir(),
+		ProjectRoot: dir,
 		Source:      "internal",
 		Target:      "production",
 		PackageName: "com.example.app",
@@ -150,6 +153,10 @@ func TestPromoteAndroidSuccess(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "promote_plan") || !strings.Contains(buf.String(), "staged rollout 25%") {
 		t.Fatalf("events=%q", buf.String())
+	}
+	rec, herr := history.LastForTrack(dir, "production")
+	if herr != nil || rec == nil || rec.Version != "1.2.3" || rec.Build != 42 || rec.Lane != "promote" {
+		t.Fatalf("history=%+v err=%v", rec, herr)
 	}
 }
 

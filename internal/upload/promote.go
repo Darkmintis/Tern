@@ -5,10 +5,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/darkmintis/Tern/internal/config"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
+	"github.com/darkmintis/Tern/internal/history"
 	"github.com/darkmintis/Tern/internal/output"
 	"github.com/darkmintis/Tern/internal/projectmeta"
 	"github.com/darkmintis/Tern/internal/upload/asc"
@@ -220,6 +223,7 @@ func (c *Client) promotePlay(ctx context.Context, opts PromoteOpts, srcTrack, tg
 			em.Emit(output.Event{Type: "promote_end", Status: "error", Message: perr.Error()})
 			return perr
 		}
+		recordPromoteHistory(opts, config.PlatformAndroid, "play_store", tgtTrack, rel.VersionCode, plan.Version, srcTrack)
 		em.Emit(output.Event{Type: "promote_end", Status: "ok", Message: msg})
 		return nil
 	}
@@ -293,6 +297,8 @@ func (c *Client) promoteASC(ctx context.Context, opts PromoteOpts, srcTrack, tgt
 			em.Emit(output.Event{Type: "promote_end", Status: "error", Message: perr.Error()})
 			return perr
 		}
+		vc, _ := strconv.ParseInt(strings.TrimSpace(build.BuildNumber), 10, 64)
+		recordPromoteHistory(opts, config.PlatformIOS, "app_store", tgtTrack, vc, version, srcTrack)
 		em.Emit(output.Event{Type: "promote_end", Status: "ok", Message: msg})
 		return nil
 	}
@@ -331,6 +337,50 @@ func marketingPart(version string) string {
 		return version[:i]
 	}
 	return version
+}
+
+// recordPromoteHistory appends a target-track row so tern status/history reflect promotes.
+func recordPromoteHistory(opts PromoteOpts, platform config.Platform, target, track string, versionCode int64, nameHint, sourceTrack string) {
+	root := strings.TrimSpace(opts.ProjectRoot)
+	if root == "" || opts.DryRun {
+		return
+	}
+	version, build := promoteHistoryVersion(root, nameHint, versionCode)
+	rec := history.Record{
+		Version:    version,
+		Build:      build,
+		Platform:   platform,
+		Target:     target,
+		Track:      track,
+		ReleasedAt: time.Now().UTC(),
+		Lane:       "promote",
+		Rollout:    opts.Rollout,
+	}
+	if prev, err := history.LastForTrack(root, sourceTrack); err == nil && prev != nil {
+		if rec.ArtifactPath == "" {
+			rec.ArtifactPath = prev.ArtifactPath
+		}
+		if rec.ArtifactSHA == "" {
+			rec.ArtifactSHA = prev.ArtifactSHA
+		}
+	}
+	_ = history.Append(root, rec)
+}
+
+func promoteHistoryVersion(root, nameHint string, versionCode int64) (version string, build int) {
+	build = int(versionCode)
+	if lv, err := projectmeta.FlutterLocalVersion(root); err == nil && lv.Marketing != "" {
+		return lv.Marketing, build
+	}
+	v := strings.TrimSpace(nameHint)
+	if i := strings.Index(v, " ("); i > 0 {
+		v = strings.TrimSpace(v[:i])
+	}
+	v = marketingPart(v)
+	if v == "" {
+		v = fmt.Sprintf("%d", versionCode)
+	}
+	return v, build
 }
 
 // normalizeStage canonicalizes user-facing stage names.
