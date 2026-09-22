@@ -82,6 +82,19 @@ func TestVersionCommand(t *testing.T) {
 	}
 }
 
+func TestVersionFlag(t *testing.T) {
+	root := newRoot()
+	root.SetArgs([]string{"--version"})
+	out := captureStdout(t, func() {
+		if err := root.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if want := version.Version + "\n"; out != want {
+		t.Fatalf("output=%q want %q", out, want)
+	}
+}
+
 func TestLanesCommandSorted(t *testing.T) {
 	dir := t.TempDir()
 	tern := "lane release:\n  build android release\nlane beta:\n  build ios release\n"

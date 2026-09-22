@@ -9,6 +9,7 @@ import (
 	"github.com/darkmintis/Tern/internal/dotenv"
 	execx "github.com/darkmintis/Tern/internal/exec"
 	"github.com/darkmintis/Tern/internal/output"
+	"github.com/darkmintis/Tern/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -30,13 +31,22 @@ func newRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "tern",
 		Short:         "Optimized mobile release engine — build, validate, ship",
+		Version:       version.Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			execx.SetVerbose(g.verbose)
 			_ = dotenv.LoadProject(g.dir)
+			dotenv.ResolvePathEnvs(g.dir,
+				"GOOGLE_APPLICATION_CREDENTIALS",
+				"ANDROID_KEYSTORE",
+				"APP_STORE_CONNECT_API_KEY_PATH",
+			)
 		},
 	}
+	// tern --version (cobra registers this when Version is set). Keep -v for --verbose.
+	root.SetVersionTemplate("{{.Version}}\n")
+
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "emit machine-readable JSON events")
 	root.PersistentFlags().BoolVar(&g.dryRun, "dry-run", false, "print what would run without executing builds/uploads")
 	root.PersistentFlags().StringVar(&g.dir, "dir", ".", "project root directory")

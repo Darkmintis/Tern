@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -394,10 +395,7 @@ func cmdHistory(g *globalFlags) *cobra.Command {
 			_, _ = fmt.Fprintln(tw, "VERSION\tPLATFORM\tTRACK\tRELEASED\tARTIFACT")
 			for i := len(h.Releases) - 1; i >= 0; i-- {
 				r := h.Releases[i]
-				artifact := r.ArtifactPath
-				if len(artifact) > 40 {
-					artifact = "..." + artifact[len(artifact)-37:]
-				}
+				artifact := shortenPath(r.ArtifactPath, 40)
 				_, _ = fmt.Fprintf(tw, "v%s+%d\t%s\t%s\t%s\t%s\n",
 					r.Version, r.Build, r.Platform, r.Track,
 					r.ReleasedAt.Local().Format("2006-01-02 15:04"), artifact)
@@ -450,10 +448,7 @@ func listArtifacts(root string) error {
 			continue
 		}
 		size := formatSize(rec.SizeBytes)
-		artifact := rec.Path
-		if len(artifact) > 50 {
-			artifact = "..." + artifact[len(artifact)-47:]
-		}
+		artifact := shortenPath(rec.Path, 50)
 		version := rec.Version
 		if parts := strings.SplitN(version, "+", 2); len(parts) == 2 {
 			version = parts[0] + "+" + parts[1]
@@ -722,4 +717,19 @@ func cmdTag(g *globalFlags) *cobra.Command {
 	}
 	c.Flags().StringVar(&prefix, "prefix", "v", "tag prefix (e.g., v)")
 	return c
+}
+
+// shortenPath keeps the basename readable on Windows long paths.
+func shortenPath(p string, max int) string {
+	if max < 8 || p == "" || len(p) <= max {
+		return p
+	}
+	base := filepath.Base(p)
+	if len(base) >= max-3 {
+		if len(base) > max {
+			return base[:max-1] + "…"
+		}
+		return base
+	}
+	return "…" + string(filepath.Separator) + base
 }
