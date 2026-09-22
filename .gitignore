@@ -26,3 +26,6 @@ AuthKey_*.p8
 /coverage
 *.cover
 *.out
+
+graphify-out/
+
