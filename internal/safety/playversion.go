@@ -141,7 +141,7 @@ func EnsurePlayVersionAhead(opts PlayVersionOpts) (PlayVersionResult, error) {
 
 	ci := InCI(opts.IsCI)
 	tty := isInteractive(opts.IsTTY)
-	hint := "bump with `tern bump version patch` (or build), or re-run with --yes to auto-bump past the store version"
+	hint := "answer yes to the bump prompt, add `bump version build` to your Ternfile lane, or re-run with --yes to auto-bump past the store version"
 	if ci || !tty {
 		return out, ternerrors.NewHint(ternerrors.ClassUpload, reason, hint)
 	}

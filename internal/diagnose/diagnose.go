@@ -123,7 +123,7 @@ var rules = []rule{
 	},
 	{
 		class: ternerrors.ClassUpload, problem: "Play versionCode already used",
-		hint: "bump the build number (`bump version build`), rebuild, then upload again",
+		hint: "add `bump version build` to your Ternfile lane (or accept Tern's pre-build bump prompt), rebuild, then upload again",
 		match: func(l string) bool {
 			return reVersionCode.MatchString(l) && containsAny(l, "already been used", "already exists", "must be higher", "higher than")
 		},

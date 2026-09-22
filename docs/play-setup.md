@@ -135,8 +135,8 @@ tern upload android to play_store track:production rollout:10
 
 - Play Console requires each upload to have a **higher** version code
 - Tern checks this before upload and warns if behind
-- Use `bump version build` to increment only the version code
-
+- Add `bump version build` to your Ternfile lane to increment only the version code (there is no `tern bump` CLI — bump is a lane step)
+- Or answer yes to the pre-build prompt / pass `--yes` to auto-bump past the store
 ## Common Issues
 
 | Problem | Fix |
