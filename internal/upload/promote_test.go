@@ -67,6 +67,10 @@ func (f *promoteFakeASC) Promote(_ context.Context, req asc.PromoteRequest) (str
 	return "promoted ios", nil
 }
 
+func (f *promoteFakeASC) SetWhatsNew(context.Context, asc.WhatsNewRequest) error {
+	return nil
+}
+
 func testEmitter(t *testing.T) (*bytes.Buffer, *output.Emitter) {
 	t.Helper()
 	var buf bytes.Buffer

@@ -38,6 +38,8 @@ type Client interface {
 	// Promote references an existing TestFlight build in the App Store version
 	// without triggering a new archive/upload.
 	Promote(ctx context.Context, req PromoteRequest) (string, error)
+	// SetWhatsNew patches App Store Connect What's New for a marketing version.
+	SetWhatsNew(ctx context.Context, req WhatsNewRequest) error
 }
 
 // APIClient uploads IPAs with xcrun altool (API key auth) and drives the

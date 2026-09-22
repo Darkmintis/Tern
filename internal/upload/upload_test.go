@@ -50,6 +50,10 @@ func (f *fakeASC) Promote(ctx context.Context, req asc.PromoteRequest) (string, 
 	return "ok-asc-promote", nil
 }
 
+func (f *fakeASC) SetWhatsNew(ctx context.Context, req asc.WhatsNewRequest) error {
+	return nil
+}
+
 func TestClientDryRun(t *testing.T) {
 	c := upload.NewClient()
 	msg, err := c.Upload(context.Background(), upload.Options{

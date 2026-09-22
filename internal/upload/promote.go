@@ -223,7 +223,7 @@ func (c *Client) promotePlay(ctx context.Context, opts PromoteOpts, srcTrack, tg
 			em.Emit(output.Event{Type: "promote_end", Status: "error", Message: perr.Error()})
 			return perr
 		}
-		recordPromoteHistory(opts, config.PlatformAndroid, "play_store", tgtTrack, rel.VersionCode, plan.Version, srcTrack)
+		recordPromoteHistory(opts, config.PlatformAndroid, "play_store", tgtTrack, rel.VersionCode, plan.Version, srcTrack, em)
 		em.Emit(output.Event{Type: "promote_end", Status: "ok", Message: msg})
 		return nil
 	}
@@ -298,7 +298,7 @@ func (c *Client) promoteASC(ctx context.Context, opts PromoteOpts, srcTrack, tgt
 			return perr
 		}
 		vc, _ := strconv.ParseInt(strings.TrimSpace(build.BuildNumber), 10, 64)
-		recordPromoteHistory(opts, config.PlatformIOS, "app_store", tgtTrack, vc, version, srcTrack)
+		recordPromoteHistory(opts, config.PlatformIOS, "app_store", tgtTrack, vc, version, srcTrack, em)
 		em.Emit(output.Event{Type: "promote_end", Status: "ok", Message: msg})
 		return nil
 	}
@@ -340,7 +340,7 @@ func marketingPart(version string) string {
 }
 
 // recordPromoteHistory appends a target-track row so tern status/history reflect promotes.
-func recordPromoteHistory(opts PromoteOpts, platform config.Platform, target, track string, versionCode int64, nameHint, sourceTrack string) {
+func recordPromoteHistory(opts PromoteOpts, platform config.Platform, target, track string, versionCode int64, nameHint, sourceTrack string, em *output.Emitter) {
 	root := strings.TrimSpace(opts.ProjectRoot)
 	if root == "" || opts.DryRun {
 		return
@@ -364,7 +364,12 @@ func recordPromoteHistory(opts PromoteOpts, platform config.Platform, target, tr
 			rec.ArtifactSHA = prev.ArtifactSHA
 		}
 	}
-	_ = history.Append(root, rec)
+	if err := history.Append(root, rec); err != nil && em != nil {
+		em.Emit(output.Event{
+			Type: "history", Status: "warn",
+			Message: "could not write .tern/history.json: " + err.Error(),
+		})
+	}
 }
 
 func promoteHistoryVersion(root, nameHint string, versionCode int64) (version string, build int) {

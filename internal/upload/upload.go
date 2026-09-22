@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/darkmintis/Tern/internal/config"
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
@@ -126,12 +127,24 @@ func (c *Client) Upload(ctx context.Context, opts Options) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		// Persist resolved What's New for operators / future ASC localization API.
+		// Persist resolved What's New for operators.
 		if root != "" && (rel.Notes != "" || rel.Name != "") {
 			_ = writeIOSReleaseMeta(root, *rel)
 		}
-		if rel.Notes != "" {
-			msg += " (What's New saved under .tern/artifacts/ios-release-meta.json; set in App Store Connect if needed)"
+		if opts.Target == "app_store" && strings.TrimSpace(rel.Notes) != "" {
+			bundle, _ := projectmeta.IOSBundleID(root)
+			if werr := c.ASC.SetWhatsNew(ctx, asc.WhatsNewRequest{
+				BundleID:       bundle,
+				ReleaseVersion: rel.Marketing,
+				Locale:         rel.NotesLocale,
+				Text:           rel.Notes,
+			}); werr != nil {
+				msg += " (What's New API: " + werr.Error() + "; also saved under .tern/artifacts/ios-release-meta.txt)"
+			} else {
+				msg += " (What's New set via App Store Connect API)"
+			}
+		} else if rel.Notes != "" {
+			msg += " (What's New saved under .tern/artifacts/ios-release-meta.txt; set in App Store Connect if needed)"
 		}
 		return msg, nil
 	default:

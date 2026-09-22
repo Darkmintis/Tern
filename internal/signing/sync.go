@@ -3,6 +3,8 @@ package signing
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	ternerrors "github.com/darkmintis/Tern/internal/errors"
 	"github.com/darkmintis/Tern/internal/secrets"
@@ -30,22 +32,33 @@ type CertSync struct {
 
 // Sync runs pull or push (or dry-run description).
 func (c *CertSync) Sync(ctx context.Context, opts SyncOptions) (string, error) {
+	repoURL := ""
 	if opts.RepoEnv != "" {
-		if _, err := secrets.ResolveEnv(opts.RepoEnv); err != nil {
+		u, err := secrets.ResolveEnv(opts.RepoEnv)
+		if err != nil {
 			return "", ternerrors.Wrap(ternerrors.ClassSign, "cert sync repo", err)
 		}
+		repoURL = u
+	}
+	if repoURL == "" {
+		repoURL = strings.TrimSpace(os.Getenv("CERT_REPO"))
 	}
 	if opts.DryRun || c.Backend == nil {
-		return fmt.Sprintf("dry-run: would sync_certs %s (repo env:%s)", opts.Action, opts.RepoEnv), nil
+		return fmt.Sprintf("dry-run: would sync_certs %s (repo=%s backend=%s)", opts.Action, repoURL, DescribeBackend(c.Backend)), nil
+	}
+	backend := c.Backend
+	if gb, ok := backend.(GitBackend); ok {
+		gb.RepoURL = repoURL
+		backend = gb
 	}
 	switch opts.Action {
 	case "pull":
-		if err := c.Backend.Pull(ctx, opts.LocalDir); err != nil {
+		if err := backend.Pull(ctx, opts.LocalDir); err != nil {
 			return "", ternerrors.Wrap(ternerrors.ClassSign, "sync_certs pull", err)
 		}
 		return "certs pulled", nil
 	case "push":
-		if err := c.Backend.Push(ctx, opts.LocalDir); err != nil {
+		if err := backend.Push(ctx, opts.LocalDir); err != nil {
 			return "", ternerrors.Wrap(ternerrors.ClassSign, "sync_certs push", err)
 		}
 		return "certs pushed", nil
