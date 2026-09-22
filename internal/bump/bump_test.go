@@ -89,3 +89,34 @@ func TestBumpGradleKts(t *testing.T) {
 		t.Fatalf("got %s message=%s", body, res.Message)
 	}
 }
+
+func TestBumpGradleGroovy(t *testing.T) {
+	dir := t.TempDir()
+	android := filepath.Join(dir, "android", "app")
+	_ = os.MkdirAll(android, 0o755)
+	path := filepath.Join(android, "build.gradle")
+	_ = os.WriteFile(path, []byte(`android {
+    defaultConfig {
+        versionCode 7
+        versionName "1.2.3"
+    }
+}
+`), 0o644)
+	res, err := bump.BumpVersion(dir, config.BumpMinor, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), `versionName "1.3.0"`) {
+		t.Fatalf("got %s message=%s", data, res.Message)
+	}
+}
+
+func TestTagName(t *testing.T) {
+	if got := bump.TagName("v", "1.2.3+9"); got != "v1.2.3" {
+		t.Fatalf("%q", got)
+	}
+	if got := bump.TagName("v", "version: 2.0.0+1"); got != "v2.0.0" {
+		t.Fatalf("%q", got)
+	}
+}

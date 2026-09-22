@@ -95,6 +95,29 @@ func TestVersionFlag(t *testing.T) {
 	}
 }
 
+func TestShortenPath(t *testing.T) {
+	sep := string(filepath.Separator)
+	cases := []struct {
+		name string
+		in   string
+		max  int
+		want string
+	}{
+		{"short unchanged", "a/b.apk", 40, "a/b.apk"},
+		{"empty", "", 40, ""},
+		{"max too small", "/very/long/path/app.apk", 4, "/very/long/path/app.apk"},
+		{"ellipsis base", "/proj/build/outputs/app-release.aab", 20, "…" + sep + "app-release.aab"},
+		{"long basename truncated", "/x/" + strings.Repeat("a", 30) + ".apk", 12, strings.Repeat("a", 11) + "…"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shortenPath(tc.in, tc.max); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestLanesCommandSorted(t *testing.T) {
 	dir := t.TempDir()
 	tern := "lane release:\n  build android release\nlane beta:\n  build ios release\n"

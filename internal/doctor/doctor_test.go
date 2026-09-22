@@ -51,7 +51,7 @@ android {
 	ks := filepath.Join(dir, "ks.jks")
 	_ = os.WriteFile(ks, []byte("k"), 0o600)
 	creds := filepath.Join(dir, "play.json")
-	_ = os.WriteFile(creds, []byte(`{}`), 0o600)
+	_ = os.WriteFile(creds, []byte(`{"type":"service_account","client_email":"ci@example.iam.gserviceaccount.com"}`), 0o600)
 
 	tern := `
 lane release:
@@ -86,6 +86,47 @@ lane release:
 	assertCheck(t, checks, "android_signing_gradle", true)
 	assertCheck(t, checks, "android_package", true)
 	assertCheck(t, checks, "env:ANDROID_KEYSTORE", true)
+	assertCheck(t, checks, "env:GOOGLE_APPLICATION_CREDENTIALS", true)
+}
+
+func TestDoctorRejectsBadPlayJSON(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte("dependencies:\n  flutter:\n    sdk: flutter\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, ".metadata"), []byte("version: 1\n"), 0o644)
+	app := filepath.Join(dir, "android", "app")
+	_ = os.MkdirAll(app, 0o755)
+	_ = os.WriteFile(filepath.Join(app, "build.gradle"), []byte(`
+def keystoreProperties = new Properties()
+android {
+  namespace "com.example.app"
+  defaultConfig { applicationId "com.example.app" }
+  signingConfigs { release { keyAlias keystoreProperties['keyAlias'] } }
+}
+`), 0o644)
+	ks := filepath.Join(dir, "ks.jks")
+	_ = os.WriteFile(ks, []byte("k"), 0o600)
+	creds := filepath.Join(dir, "play.json")
+	_ = os.WriteFile(creds, []byte(`{"type":"user","client_email":""}`), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "Ternfile"), []byte("lane release:\n  upload android to play_store track:internal\n"), 0o644)
+	sdk := filepath.Join(dir, "android-sdk")
+	_ = os.MkdirAll(sdk, 0o755)
+	t.Setenv("ANDROID_HOME", sdk)
+	t.Setenv("ANDROID_KEYSTORE", ks)
+	t.Setenv("ANDROID_KEYSTORE_PASSWORD", "store-pass-strong")
+	t.Setenv("ANDROID_KEY_ALIAS", "upload")
+	t.Setenv("ANDROID_KEY_PASSWORD", "key-pass-strong")
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", creds)
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checks, _ := doctor.Run(doctor.Options{
+		ProjectRoot: dir,
+		Config:      cfg,
+		Registry:    adapter.NewRegistry(testFlutterAdapter()),
+		Emitter:     output.New(output.ModeJSON),
+	})
+	assertCheck(t, checks, "env:GOOGLE_APPLICATION_CREDENTIALS", false)
 }
 
 func TestDoctorFlagsSyncCerts(t *testing.T) {

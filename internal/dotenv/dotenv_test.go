@@ -34,7 +34,8 @@ func TestResolvePathEnvs(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "secrets/play.json")
 	t.Setenv("ANDROID_KEYSTORE", filepath.Join(dir, "abs.jks")) // already abs
-	ResolvePathEnvs(dir, "GOOGLE_APPLICATION_CREDENTIALS", "ANDROID_KEYSTORE")
+	t.Setenv("BARE_TOKEN", "notapath")
+	ResolvePathEnvs(dir, "GOOGLE_APPLICATION_CREDENTIALS", "ANDROID_KEYSTORE", "BARE_TOKEN")
 	got := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	want := filepath.Join(dir, "secrets", "play.json")
 	if got != want {
@@ -42,5 +43,20 @@ func TestResolvePathEnvs(t *testing.T) {
 	}
 	if os.Getenv("ANDROID_KEYSTORE") != filepath.Join(dir, "abs.jks") {
 		t.Fatalf("abs path rewritten: %s", os.Getenv("ANDROID_KEYSTORE"))
+	}
+	if os.Getenv("BARE_TOKEN") != "notapath" {
+		t.Fatalf("non-path rewritten: %s", os.Getenv("BARE_TOKEN"))
+	}
+}
+
+func TestLoadProject(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, ".env"), []byte("TERN_LOAD_PROJECT=yes\n"), 0o644)
+	_ = os.Unsetenv("TERN_LOAD_PROJECT")
+	if err := LoadProject(dir); err != nil {
+		t.Fatal(err)
+	}
+	if got := os.Getenv("TERN_LOAD_PROJECT"); got != "yes" {
+		t.Fatalf("%q", got)
 	}
 }
