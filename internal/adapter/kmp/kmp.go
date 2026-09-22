@@ -47,5 +47,5 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		return adapter.BuildArtifact{Path: "build/kmp-placeholder", Platform: opts.Platform, Kind: kind}, nil
 	}
 	return adapter.BuildArtifact{}, ternerrors.New(ternerrors.ClassBuild,
-		"kmp adapter is Phase 3 scaffold only — Flutter is the supported path in v0")
+		"kmp adapter is Phase 3 scaffold only — Flutter is the supported path in v0; Detect stays off until Flutter Play dogfood is complete (ADR 0004)")
 }

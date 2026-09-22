@@ -49,7 +49,7 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		}, nil
 	}
 	return adapter.BuildArtifact{}, ternerrors.New(ternerrors.ClassBuild,
-		"native adapter is Phase 2 scaffold only — Flutter is the supported path in v0")
+		"native adapter is Phase 2 scaffold only — Flutter is the supported path in v0; Detect stays off until Flutter Play dogfood is complete (ADR 0004)")
 }
 
 func placeholderKind(p config.Platform) string {

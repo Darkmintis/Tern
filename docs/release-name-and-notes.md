@@ -67,4 +67,4 @@ tern ship last --to play_store --notes-file RELEASE_NOTES.md
 A successful promote also appends a row to `.tern/history.json` for the **target** track so `tern status` / `tern history` stay accurate.
 ## iOS / TestFlight note
 
-IPA upload via `altool` does not set App Store Connect “What’s New” yet. Tern still resolves name/notes and writes `.tern/artifacts/ios-release-meta.txt` so you (or a later ASC API step) can apply them. Play Store name + notes are applied live on upload.
+IPA upload via `xcrun altool` still uploads the binary only. For **`app_store`** uploads with notes set, Tern also tries the App Store Connect REST API to set What’s New (requires an existing version + localization). If that fails, notes remain in `.tern/artifacts/ios-release-meta.txt` for manual paste.

@@ -40,7 +40,7 @@ Record for every result file:
 ```text
 benchmarks/
   README.md          # this file
-  scripts/
+  scripts/ (run_tern.sh present; Fastlane stub)
     run_tern.sh      # times Tern lane; writes JSON
     run_fastlane.sh  # times Fastlane lane; writes JSON
     summarize.py     # merges JSON → markdown table

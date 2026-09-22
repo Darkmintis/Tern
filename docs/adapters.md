@@ -10,3 +10,5 @@ Tern v0 ships **Flutter only**. These packages exist so roadmap work has a home:
 | [`internal/adapter/reactnative`](../internal/adapter/reactnative) | 4 | Scaffold |
 
 When enabling a later phase: turn `Detect` back on, implement `Build`, dogfood on a real app, then document it as supported.
+
+**Do not** enable Native/KMP/RN Detect while Flutter → Play dogfood is still the product proof (see ADR 0004). Scaffolds stay refuse-live so accidental detection cannot ship incomplete adapters.

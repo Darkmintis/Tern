@@ -6,6 +6,8 @@ Secrets are **never** written into `Ternfile`. Reference them with `env:NAME` on
 
 Local tip: keep values in `.env` at the Flutter app root (`tern init` writes `.env.example`). Tern loads `.env` automatically; existing shell/CI variables are not overwritten.
 
+Relative paths in `.env` (e.g. `secrets/play.json`) are resolved against the project root (`--dir` / CWD), not against wherever you launched the shell from.
+
 ## Android / Play
 
 | Variable | Required for | Description |
@@ -16,6 +18,8 @@ Local tip: keep values in `.env` at the Flutter app root (`tern init` writes `.e
 | `ANDROID_KEY_PASSWORD` | `sign android` | Key password |
 | `GOOGLE_APPLICATION_CREDENTIALS` | `upload … play_store` | Path to Play Console service-account JSON |
 | `ANDROID_PACKAGE_NAME` | optional | Override package id if Gradle detection fails |
+| `CERT_REPO` | `sync_certs` | Git URL for signing-material repo |
+| `TERN_CERT_SYNC` | `sync_certs` | Set to `git` to enable git-based cert sync (with `CERT_REPO`) |
 
 ## iOS / TestFlight
 

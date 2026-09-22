@@ -47,5 +47,5 @@ func (a *Adapter) Build(ctx context.Context, opts adapter.BuildOptions) (adapter
 		return adapter.BuildArtifact{Path: "build/rn-placeholder", Platform: opts.Platform, Kind: kind}, nil
 	}
 	return adapter.BuildArtifact{}, ternerrors.New(ternerrors.ClassBuild,
-		"reactnative adapter is Phase 4 scaffold only — Flutter is the supported path in v0")
+		"reactnative adapter is Phase 4 scaffold only — Flutter is the supported path in v0; Detect stays off until Flutter Play dogfood is complete (ADR 0004)")
 }
