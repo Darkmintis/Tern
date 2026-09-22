@@ -400,7 +400,7 @@ func cmdHistory(g *globalFlags) *cobra.Command {
 				}
 				_, _ = fmt.Fprintf(tw, "v%s+%d\t%s\t%s\t%s\t%s\n",
 					r.Version, r.Build, r.Platform, r.Track,
-					r.ReleasedAt.Format("2006-01-02 15:04"), artifact)
+					r.ReleasedAt.Local().Format("2006-01-02 15:04"), artifact)
 			}
 			_ = tw.Flush()
 			return nil
@@ -460,7 +460,7 @@ func listArtifacts(root string) error {
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 			rec.Platform, version, size,
-			rec.BuiltAt.Format("2006-01-02 15:04"), artifact)
+			rec.BuiltAt.Local().Format("2006-01-02 15:04"), artifact)
 		count++
 	}
 	if count == 0 {
