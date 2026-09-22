@@ -46,10 +46,11 @@ type Options struct {
 
 // Engine runs lanes against adapters and shared core services.
 type Engine struct {
-	Registry *adapter.Registry
-	Signing  *signing.Manager
-	CertSync *signing.CertSync
-	Upload   *upload.Client
+	Registry   *adapter.Registry
+	Signing    *signing.Manager
+	CertSync   *signing.CertSync
+	Upload     *upload.Client
+	lastGitTag string // set by tag step; copied into history on upload/ship
 }
 
 func New(reg *adapter.Registry) *Engine {
@@ -336,14 +337,25 @@ func (e *Engine) runStep(
 		err = berr
 		msg = res.Message
 	case config.StepTag:
-		msg, err = runGitTag(root, step.TagPrefix, opts.DryRun)
+		var tag string
+		tag, msg, err = runGitTag(root, step.TagPrefix, opts.DryRun)
+		if err == nil && tag != "" {
+			e.lastGitTag = tag
+		}
 	case config.StepCommit:
 		msg, err = runGitCommit(root, step.CommitMsg, step.CommitAll, opts.DryRun)
 	case config.StepSyncCerts:
-		if !opts.DryRun && (e.CertSync == nil || e.CertSync.Backend == nil) {
+		if e.CertSync == nil {
+			e.CertSync = &signing.CertSync{}
+		}
+		// Opt-in: set TERN_CERT_SYNC=git and CERT_REPO to enable git pull/push.
+		if e.CertSync.Backend == nil && strings.EqualFold(strings.TrimSpace(os.Getenv("TERN_CERT_SYNC")), "git") {
+			e.CertSync.Backend = signing.DefaultCertSyncBackend()
+		}
+		if !opts.DryRun && e.CertSync.Backend == nil {
 			err = ternerrors.NewHint(ternerrors.ClassSign,
-				"sync_certs is not available in v0",
-				"remove the sync_certs step from your Ternfile; encrypted cert sync ships in a later release")
+				"sync_certs requires TERN_CERT_SYNC=git and CERT_REPO",
+				"export TERN_CERT_SYNC=git and CERT_REPO=<git-url> for git-based cert sync, or remove sync_certs until age-encrypted sync ships")
 			break
 		}
 		msg, err = e.CertSync.Sync(ctx, signing.SyncOptions{
@@ -408,7 +420,7 @@ func shortHash(s string) string {
 	return s
 }
 
-func (e *Engine) recordRelease(root, laneName string, step config.Step, artPath string, artSHA string) {
+func (e *Engine) recordRelease(root, laneName string, step config.Step, artPath string, artSHA string, em *output.Emitter) {
 	if step.Kind != config.StepUpload && step.Kind != config.StepShip {
 		return
 	}
@@ -432,10 +444,16 @@ func (e *Engine) recordRelease(root, laneName string, step config.Step, artPath 
 		ArtifactPath: artPath,
 		ArtifactSHA:  artSHA,
 		ReleasedAt:   time.Now().UTC(),
+		GitTag:       e.lastGitTag,
 		Lane:         laneName,
 		Rollout:      step.Rollout,
 	}
-	_ = history.Append(root, rec)
+	if aerr := history.Append(root, rec); aerr != nil && em != nil {
+		em.Emit(output.Event{
+			Type: "history", Status: "warn",
+			Message: "could not write .tern/history.json: " + aerr.Error(),
+		})
+	}
 }
 
 // errorEvent builds an error event with verbose detail when enabled.

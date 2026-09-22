@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -77,14 +78,14 @@ func Run(opts Options) ([]Check, error) {
 		} else {
 			checks = append(checks, Check{Name: "android_signing_gradle", OK: true, Message: "key.properties signing wired"})
 		}
-		if _, err := projectmeta.AndroidPackageID(root); err != nil {
+		if id, err := projectmeta.AndroidPackageID(root); err != nil {
 			checks = append(checks, Check{
 				Name: "android_package", OK: false,
 				Message: err.Error(),
 				Hint:    "set ANDROID_PACKAGE_NAME or ensure applicationId is in android/app/build.gradle",
 			})
 		} else {
-			checks = append(checks, Check{Name: "android_package", OK: true, Message: "package id detected"})
+			checks = append(checks, Check{Name: "android_package", OK: true, Message: "package id " + id})
 		}
 	default:
 		checks = append(checks, optionalTool("flutter"))
@@ -173,8 +174,13 @@ func Run(opts Options) ([]Check, error) {
 					Name: "env:GOOGLE_APPLICATION_CREDENTIALS", OK: false, Message: err.Error(),
 					Hint: "path must exist; put play.json under secrets/ — docs/play-setup.md",
 				})
+			} else if msg, ok := checkPlayServiceAccountJSON(creds); !ok {
+				checks = append(checks, Check{
+					Name: "env:GOOGLE_APPLICATION_CREDENTIALS", OK: false, Message: msg,
+					Hint: "download a service-account JSON key (type service_account) from Google Cloud / Play API access",
+				})
 			} else {
-				checks = append(checks, Check{Name: "env:GOOGLE_APPLICATION_CREDENTIALS", OK: true, Message: "present, file readable"})
+				checks = append(checks, Check{Name: "env:GOOGLE_APPLICATION_CREDENTIALS", OK: true, Message: msg})
 			}
 		}
 		if needsASC {
@@ -256,5 +262,27 @@ func looksLikePath(v string) bool {
 	if strings.HasPrefix(v, "git@") || strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "ssh://") {
 		return false
 	}
-	return strings.Contains(v, "/") || strings.Contains(v, `\`)
+	return strings.ContainsAny(v, `/\`) || strings.HasPrefix(v, ".")
+}
+
+// checkPlayServiceAccountJSON validates the Play credentials file looks like a service account key.
+func checkPlayServiceAccountJSON(path string) (message string, ok bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err.Error(), false
+	}
+	var meta struct {
+		Type        string `json:"type"`
+		ClientEmail string `json:"client_email"`
+	}
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return "Play credentials file is not valid JSON", false
+	}
+	if meta.Type != "service_account" {
+		return `Play credentials JSON type must be "service_account"`, false
+	}
+	if strings.TrimSpace(meta.ClientEmail) == "" {
+		return "Play credentials JSON missing client_email", false
+	}
+	return "service account " + meta.ClientEmail, true
 }

@@ -29,3 +29,18 @@ func TestLoadFile_MissingOK(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestResolvePathEnvs(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "secrets/play.json")
+	t.Setenv("ANDROID_KEYSTORE", filepath.Join(dir, "abs.jks")) // already abs
+	ResolvePathEnvs(dir, "GOOGLE_APPLICATION_CREDENTIALS", "ANDROID_KEYSTORE")
+	got := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	want := filepath.Join(dir, "secrets", "play.json")
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+	if os.Getenv("ANDROID_KEYSTORE") != filepath.Join(dir, "abs.jks") {
+		t.Fatalf("abs path rewritten: %s", os.Getenv("ANDROID_KEYSTORE"))
+	}
+}

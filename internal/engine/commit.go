@@ -22,7 +22,11 @@ func (e *Engine) CommitPubspec(ctx context.Context, root, message string, all, d
 
 // TagVersion creates a git tag from the pubspec version.
 func (e *Engine) TagVersion(ctx context.Context, root, prefix string, dryRun bool) (string, error) {
-	return runGitTag(root, prefix, dryRun)
+	tag, msg, err := runGitTag(root, prefix, dryRun)
+	if err == nil && tag != "" && e != nil {
+		e.lastGitTag = tag
+	}
+	return msg, err
 }
 
 func runGitCommit(root, message string, all, dryRun bool) (string, error) {

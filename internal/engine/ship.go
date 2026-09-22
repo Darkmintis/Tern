@@ -82,8 +82,15 @@ func (e *Engine) runUploadOrShip(
 		_ = vres
 	}
 
-	if err := e.ensurePlayVersion(ctx, root, step.UploadTarget, step.Track, opts, em); err != nil {
+	bumped, err := e.ensurePlayVersion(ctx, root, step.UploadTarget, step.Track, opts, em)
+	if err != nil {
 		return "", err
+	}
+	if bumped && (step.Kind == config.StepShip || from != "") {
+		em.Emit(output.Event{
+			Type: "version_check", Status: "warn",
+			Message: "pubspec was bumped for Play versionCode, but this step uploads an existing artifact — rebuild (build android release) before ship if the AAB still has the old versionCode",
+		})
 	}
 
 	if err := safety.ConfirmProduction(safety.ConfirmOpts{
@@ -113,7 +120,7 @@ func (e *Engine) runUploadOrShip(
 		if _, rec, rerr := artifacts.ResolvePath(root, step.Platform, artPath); rerr == nil {
 			sha = rec.SHA256
 		}
-		e.recordRelease(root, "", step, artPath, sha)
+		e.recordRelease(root, "", step, artPath, sha, em)
 	}
 	return msg, nil
 }
@@ -163,13 +170,20 @@ func (e *Engine) Ship(ctx context.Context, opts ShipOptions) error {
 		}
 	}
 
-	if err := e.ensurePlayVersion(ctx, root, opts.Target, opts.Track, Options{
+	bumped, err := e.ensurePlayVersion(ctx, root, opts.Target, opts.Track, Options{
 		ProjectRoot: root,
 		DryRun:      opts.DryRun,
 		Force:       opts.Force,
 		Yes:         opts.Yes,
-	}, em); err != nil {
+	}, em)
+	if err != nil {
 		return err
+	}
+	if bumped {
+		em.Emit(output.Event{
+			Type: "version_check", Status: "warn",
+			Message: "pubspec was bumped for Play versionCode, but tern ship uploads an existing artifact — rebuild before ship if the AAB still has the old versionCode",
+		})
 	}
 
 	if err := safety.ConfirmProduction(safety.ConfirmOpts{
@@ -204,7 +218,7 @@ func (e *Engine) Ship(ctx context.Context, opts ShipOptions) error {
 			Track:        opts.Track,
 			Rollout:      opts.Rollout,
 		}
-		e.recordRelease(root, "", step, path, rec.SHA256)
+		e.recordRelease(root, "", step, path, rec.SHA256, em)
 	}
 	return nil
 }

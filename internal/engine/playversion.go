@@ -54,20 +54,20 @@ func (e *Engine) ensurePlayVersion(
 	target, track string,
 	opts Options,
 	em *output.Emitter,
-) error {
+) (bumped bool, err error) {
 	if e.Upload == nil || e.Upload.Play == nil {
-		return nil
+		return false, nil
 	}
 	target = strings.ToLower(strings.TrimSpace(target))
 	if target != "" && target != "play_store" {
-		return nil
+		return false, nil
 	}
 	if strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")) == "" {
 		em.Emit(output.Event{
 			Type: "version_check", Status: "skipped",
 			Message: "Play version check skipped (GOOGLE_APPLICATION_CREDENTIALS not set)",
 		})
-		return nil
+		return false, nil
 	}
 	if target == "" {
 		target = "play_store"
@@ -87,7 +87,7 @@ func (e *Engine) ensurePlayVersion(
 			Type: "version_check", Status: "error",
 			Message: err.Error(),
 		})
-		return err
+		return false, err
 	}
 	status := "ok"
 	if res.Skipped {
@@ -96,7 +96,7 @@ func (e *Engine) ensurePlayVersion(
 		status = "bumped"
 	}
 	em.Emit(output.Event{Type: "version_check", Status: status, Message: res.Message})
-	return nil
+	return res.Bumped, nil
 }
 
 // ensurePlayVersionsBeforeBuilds runs the Play versionCode gate once before

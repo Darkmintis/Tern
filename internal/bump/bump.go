@@ -32,7 +32,7 @@ func BumpVersion(projectRoot string, level config.BumpLevel, dryRun bool) (Resul
 	}
 	gradleKts := filepath.Join(projectRoot, "android", "app", "build.gradle.kts")
 	if _, err := os.Stat(gradleKts); err == nil {
-		return Result{Message: "dry-run/skip: gradle.kts bump not yet implemented"}, nil
+		return bumpGradleKts(gradleKts, level, dryRun)
 	}
 	return Result{}, ternerrors.New(ternerrors.ClassConfig, "no pubspec.yaml or build.gradle found to bump")
 }
@@ -131,6 +131,64 @@ func bumpGradleVersionName(path string, level config.BumpLevel, dryRun bool) (Re
 		return Result{}, err
 	}
 	return Result{File: path, Old: old, New: newVer, Message: "versionName " + old + " -> " + newVer}, nil
+}
+
+var (
+	gradleKtsVersionNameRe = regexp.MustCompile(`versionName\s*=\s*"([^"]+)"`)
+	gradleKtsVersionCodeRe = regexp.MustCompile(`versionCode\s*=\s*(\d+)`)
+)
+
+func bumpGradleKts(path string, level config.BumpLevel, dryRun bool) (Result, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Result{}, err
+	}
+	m := gradleKtsVersionNameRe.FindSubmatch(data)
+	if m == nil {
+		return Result{}, ternerrors.New(ternerrors.ClassConfig, "no versionName in build.gradle.kts")
+	}
+	oldName := string(m[1])
+	parts := strings.Split(oldName, ".")
+	for len(parts) < 3 {
+		parts = append(parts, "0")
+	}
+	nums := make([]int, 3)
+	for i := 0; i < 3; i++ {
+		nums[i], _ = strconv.Atoi(parts[i])
+	}
+	code := 0
+	if cm := gradleKtsVersionCodeRe.FindSubmatch(data); cm != nil {
+		code, _ = strconv.Atoi(string(cm[1]))
+	}
+	switch level {
+	case config.BumpMajor:
+		nums[0]++
+		nums[1], nums[2] = 0, 0
+		code++
+	case config.BumpMinor:
+		nums[1]++
+		nums[2] = 0
+		code++
+	case config.BumpBuild:
+		code++
+	default:
+		nums[2]++
+		code++
+	}
+	newName := fmt.Sprintf("%d.%d.%d", nums[0], nums[1], nums[2])
+	msg := fmt.Sprintf("versionName %s -> %s", oldName, newName)
+	if dryRun {
+		return Result{File: path, Old: oldName, New: newName, Message: "dry-run: " + msg}, nil
+	}
+	updated := gradleKtsVersionNameRe.ReplaceAll(data, []byte(fmt.Sprintf(`versionName = "%s"`, newName)))
+	if gradleKtsVersionCodeRe.Match(updated) {
+		updated = gradleKtsVersionCodeRe.ReplaceAll(updated, []byte(fmt.Sprintf("versionCode = %d", code)))
+		msg += fmt.Sprintf("; versionCode -> %d", code)
+	}
+	if err := os.WriteFile(path, updated, 0o644); err != nil {
+		return Result{}, err
+	}
+	return Result{File: path, Old: oldName, New: newName, Message: msg}, nil
 }
 
 // TagMessage returns the git tag name for a version string.

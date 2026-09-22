@@ -55,6 +55,33 @@ func LoadProject(dir string) error {
 	return LoadFile(filepath.Join(dir, ".env"))
 }
 
+// ResolvePathEnvs rewrites relative file-path env values to be absolute under projectRoot.
+// Absolute paths and empty values are left unchanged. Safe to call after LoadProject.
+func ResolvePathEnvs(projectRoot string, keys ...string) {
+	if projectRoot == "" {
+		projectRoot, _ = os.Getwd()
+	}
+	root, err := filepath.Abs(projectRoot)
+	if err != nil {
+		root = projectRoot
+	}
+	for _, key := range keys {
+		v := strings.TrimSpace(os.Getenv(key))
+		if v == "" || filepath.IsAbs(v) {
+			continue
+		}
+		// Skip obvious non-paths (e.g. bare tokens without separators).
+		if !looksLikePath(v) {
+			continue
+		}
+		_ = os.Setenv(key, filepath.Join(root, filepath.FromSlash(v)))
+	}
+}
+
+func looksLikePath(v string) bool {
+	return strings.ContainsAny(v, `/\`) || strings.Contains(v, ".")
+}
+
 func unquote(v string) string {
 	if len(v) >= 2 {
 		if (v[0] == '"' && v[len(v)-1] == '"') || (v[0] == '\'' && v[len(v)-1] == '\'') {

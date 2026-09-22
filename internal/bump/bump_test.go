@@ -66,3 +66,26 @@ func TestBumpPastStoreJumpsAboveStore(t *testing.T) {
 		t.Fatalf("got %s", data)
 	}
 }
+
+func TestBumpGradleKts(t *testing.T) {
+	dir := t.TempDir()
+	android := filepath.Join(dir, "android", "app")
+	_ = os.MkdirAll(android, 0o755)
+	path := filepath.Join(android, "build.gradle.kts")
+	_ = os.WriteFile(path, []byte(`android {
+    defaultConfig {
+        versionCode = 7
+        versionName = "1.2.3"
+    }
+}
+`), 0o644)
+	res, err := bump.BumpVersion(dir, config.BumpPatch, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	body := string(data)
+	if !strings.Contains(body, `versionName = "1.2.4"`) || !strings.Contains(body, "versionCode = 8") {
+		t.Fatalf("got %s message=%s", body, res.Message)
+	}
+}
