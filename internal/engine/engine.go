@@ -338,7 +338,7 @@ func (e *Engine) runStep(
 	case config.StepTag:
 		msg, err = runGitTag(root, step.TagPrefix, opts.DryRun)
 	case config.StepCommit:
-		msg, err = runGitCommit(root, step.CommitMsg, false, opts.DryRun)
+		msg, err = runGitCommit(root, step.CommitMsg, step.CommitAll, opts.DryRun)
 	case config.StepSyncCerts:
 		if !opts.DryRun && (e.CertSync == nil || e.CertSync.Backend == nil) {
 			err = ternerrors.NewHint(ternerrors.ClassSign,

@@ -71,6 +71,7 @@ type yamlTag struct {
 
 type yamlCommit struct {
 	Message string `yaml:"message"`
+	All     bool   `yaml:"all"`
 }
 
 type yamlSyncCerts struct {
@@ -187,7 +188,7 @@ func yamlToStep(ys yamlStep) (Step, error) {
 		if msg == "" {
 			msg = "release: v$version"
 		}
-		s = Step{Kind: StepCommit, CommitMsg: msg, Raw: "commit"}
+		s = Step{Kind: StepCommit, CommitMsg: msg, CommitAll: ys.Commit.All, Raw: "commit"}
 	}
 	if ys.SyncCerts != nil {
 		n++

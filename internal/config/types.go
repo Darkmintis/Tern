@@ -86,6 +86,8 @@ type Step struct {
 	BumpLevel   BumpLevel
 	TagPrefix   string
 	CommitMsg   string
+	// CommitAll stages all changes (git add -A); when false, only pubspec.yaml.
+	CommitAll bool
 	// SyncAction is pull or push.
 	SyncAction string
 	NotifyVia  string

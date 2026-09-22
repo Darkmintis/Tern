@@ -185,6 +185,7 @@ func TestParseDSL_TableDriven(t *testing.T) {
 		{"sign ok", "sign ios with cert env:IOS_CERT", false, config.StepSign},
 		{"sign no env", "sign ios with cert IOS_CERT", true, ""},
 		{"upload ok", "upload ios to testflight", false, config.StepUpload},
+		{"commit ok", "commit message:\"release: v$version\" all:true", false, config.StepCommit},
 		{"unknown", "deploy production", true, ""},
 	}
 	for _, tc := range cases {
@@ -204,5 +205,34 @@ func TestParseDSL_TableDriven(t *testing.T) {
 				t.Fatalf("got %+v", cfg.Lanes["t"].Steps[0])
 			}
 		})
+	}
+}
+
+func TestParseDSL_CommitAll(t *testing.T) {
+	cfg, err := config.ParseDSL("lane t:\n  commit message:\"release: v$version\" all:true\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := cfg.Lanes["t"].Steps[0]
+	if s.Kind != config.StepCommit || s.CommitMsg != "release: v$version" || !s.CommitAll {
+		t.Fatalf("got %+v", s)
+	}
+}
+
+func TestParseYAML_CommitAll(t *testing.T) {
+	src := []byte(`
+lanes:
+  t:
+    - commit:
+        message: "release: v$version"
+        all: true
+`)
+	cfg, err := config.ParseYAML(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := cfg.Lanes["t"].Steps[0]
+	if s.Kind != config.StepCommit || s.CommitMsg != "release: v$version" || !s.CommitAll {
+		t.Fatalf("got %+v", s)
 	}
 }

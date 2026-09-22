@@ -245,15 +245,20 @@ func parseTag(parts []string) (Step, error) {
 }
 
 func parseCommit(parts []string) (Step, error) {
-	// commit message:"release: v$version"
+	// commit message:"release: v$version" [all:true]
 	msg := "release: v$version"
+	all := false
 	for _, extra := range parts[1:] {
-		if strings.HasPrefix(extra, "message:") {
+		switch {
+		case strings.HasPrefix(extra, "message:"):
 			msg = strings.TrimPrefix(extra, "message:")
 			msg = strings.Trim(msg, "\"'")
+		case strings.HasPrefix(extra, "all:"):
+			v := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(extra, "all:")))
+			all = v == "true" || v == "1" || v == "yes"
 		}
 	}
-	return Step{Kind: StepCommit, CommitMsg: msg}, nil
+	return Step{Kind: StepCommit, CommitMsg: msg, CommitAll: all}, nil
 }
 
 func parseSyncCerts(parts []string) (Step, error) {
