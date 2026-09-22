@@ -58,7 +58,14 @@ func TestNewestEligible(t *testing.T) {
 }
 
 func TestBuildTrackUpdate(t *testing.T) {
-	rel := SourceRelease{Eligible: true, VersionCode: 42, Name: "1.2.3 (42)"}
+	rel := SourceRelease{
+		Eligible:    true,
+		VersionCode: 42,
+		Name:        "1.2.3 (42)",
+		ReleaseNotes: []*androidpublisher.LocalizedText{
+			{Language: "en-US", Text: "Bug fixes and improvements."},
+		},
+	}
 
 	done := buildTrackUpdate(PromoteRequest{TargetTrack: "production", Release: rel})
 	if done.Track != "production" || len(done.Releases) != 1 {
@@ -68,10 +75,17 @@ func TestBuildTrackUpdate(t *testing.T) {
 	if r.Status != "completed" || r.VersionCodes[0] != 42 || r.Name != "1.2.3 (42)" {
 		t.Fatalf("release=%+v", r)
 	}
+	if len(r.ReleaseNotes) != 1 || r.ReleaseNotes[0].Language != "en-US" ||
+		r.ReleaseNotes[0].Text != "Bug fixes and improvements." {
+		t.Fatalf("notes not copied: %+v", r.ReleaseNotes)
+	}
 
 	staged := buildTrackUpdate(PromoteRequest{TargetTrack: "beta", Release: rel, UserFraction: 0.1})
 	if staged.Releases[0].Status != "inProgress" || staged.Releases[0].UserFraction != 0.1 {
 		t.Fatalf("staged release=%+v", staged.Releases[0])
+	}
+	if len(staged.Releases[0].ReleaseNotes) != 1 {
+		t.Fatalf("staged notes missing: %+v", staged.Releases[0].ReleaseNotes)
 	}
 }
 

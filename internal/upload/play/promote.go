@@ -18,6 +18,8 @@ type SourceRelease struct {
 	Status       string // completed | inProgress | draft
 	Name         string
 	UserFraction float64
+	// ReleaseNotes are What's New texts from the source track (copied on promote).
+	ReleaseNotes []*androidpublisher.LocalizedText
 	// Eligible is true when a completed or rolled-out release exists on the track.
 	Eligible bool
 }
@@ -68,6 +70,7 @@ func (c APIClient) Lookup(ctx context.Context, req LookupRequest) (SourceRelease
 		out.Status = rel.Status
 		out.Name = rel.Name
 		out.UserFraction = rel.UserFraction
+		out.ReleaseNotes = rel.ReleaseNotes
 		out.Eligible = true
 	}
 	return out, nil
@@ -121,6 +124,9 @@ func buildTrackUpdate(req PromoteRequest) *androidpublisher.Track {
 	}
 	if name := strings.TrimSpace(req.Release.Name); name != "" {
 		rel.Name = name
+	}
+	if len(req.Release.ReleaseNotes) > 0 {
+		rel.ReleaseNotes = req.Release.ReleaseNotes
 	}
 	if f := req.UserFraction; f > 0 && f < 1 {
 		rel.Status = "inProgress"

@@ -60,6 +60,10 @@ tern ship last --to play_store --release-name version_build --notes "Bug fixes a
 tern ship last --to play_store --notes-file RELEASE_NOTES.md
 ```
 
+## Promote
+
+`tern promote <source> <target>` (Play tracks) reuses the source release’s **versionCode**, **name**, and **release notes** (What’s New). You do not need to re-enter notes when moving internal → alpha → production.
+
 ## iOS / TestFlight note
 
 IPA upload via `altool` does not set App Store Connect “What’s New” yet. Tern still resolves name/notes and writes `.tern/artifacts/ios-release-meta.txt` so you (or a later ASC API step) can apply them. Play Store name + notes are applied live on upload.
